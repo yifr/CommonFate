@@ -232,56 +232,55 @@ class Sphere(ConvexShape):
         return np.array(points).T * radius
 
 
-def fexp(x, n):
-    return np.sign(x) * np.power(np.abs(x), n)
+def signed_exp(x, n):
+    return np.sign(x) * (np.abs(x) ** n)
 
 class Ellipsoid(ConvexShape):
-    def __init__(self, a, b, c, eps):
+    def __init__(self, x_scale=1, y_scale=1, z_scale=1, epsilons=[0.5, 0.5]):
+        """
+        Params:
+            yscale [0, 2]
+            xscale [0, 2]
+            height [0, 5]
+            epsilons: [e1: vertical squareness, e2: horizontal squareness] [0.25, 1]
+        """
         super(Ellipsoid, self).__init__(
-            self._create_points(a, b, c, eps)
+            self._create_points(x_scale, y_scale, z_scale, epsilons)
         )
 
-    def _create_points(self, a, b, c, eps):
+    def _create_points(self, x_scale, y_scale, z_scale, eps):
         theta = np.linspace(-np.pi/2, np.pi/2, 100)
         phi = np.linspace(-np.pi, np.pi, 100)
         theta, phi = np.meshgrid(theta, phi)
-        x = a * fexp(np.cos(theta), eps[0]) * fexp(np.cos(phi), eps[0])
-        y = b * fexp(np.cos(theta), eps[1]) * fexp(np.sin(phi), eps[1])
-        z = c * fexp(np.sin(theta), eps[2])
+        x = x_scale * signed_exp(np.cos(theta), eps[0]) * signed_exp(np.cos(phi), eps[1])
+        y = y_scale * signed_exp(np.cos(theta), eps[0]) * signed_exp(np.sin(phi), eps[1])
+        z = z_scale * signed_exp(np.sin(theta), eps[0])
         points = np.stack([x, y, z]).reshape(3, -1)
 
         return points
 
 class Toroid(ConvexShape):
-    def __init__(self, a, b, c, d, eps):
+    def __init__(self, x_scale=1, y_scale=1, z_scale=1, inner_radius=0.5, epsilons=[0.5, 0.5]):
+        """
+        Params:
+            yscale [0, 2]
+            xscale [0, 2]
+            height [0, 5]
+            inner radius [0, 2]
+            epsilons: [e1: vertical squareness, e2: horizontal squareness] [0.25, 1]
+        """
         super(Toroid, self).__init__(
-            self._create_points(a, b, c, d, eps)
+            self._create_points(x_scale, y_scale, z_scale, inner_radius, epsilons)
         )
 
-    def _create_points(self, a, b, c, d, eps):
+    def _create_points(self, x_scale, y_scale, z_scale, inner_radius, eps):
         theta = np.linspace(-np.pi, np.pi, 100)
         phi = np.linspace(-np.pi, np.pi, 100)
         theta, phi = np.meshgrid(theta, phi)
-        x = a * (d + fexp(np.cos(theta), eps[0])) * fexp(np.cos(phi), eps[0])
-        y = b * (d + fexp(np.cos(theta), eps[1])) * fexp(np.sin(phi), eps[1])
-        z = c * fexp(np.sin(theta), eps[2])
+        x = x_scale * (inner_radius + signed_exp(np.cos(theta), eps[0])) * signed_exp(np.cos(phi), eps[1])
+        y = y_scale * (inner_radius + signed_exp(np.cos(theta), eps[0])) * signed_exp(np.sin(phi), eps[1])
+        z = z_scale * signed_exp(np.sin(theta), eps[1])
         points = np.stack([x, y, z]).reshape(3, -1)
 
         return points
 
-class Hyperboloid(ConvexShape):
-    def __init__(self, a, b, c):
-        super(Hyperboloid, self).__init__(
-            self._create_points(a, b, c)
-        )
-
-    def _create_points(self, a, b, c):
-        theta = np.linspace(-np.pi / 2, np.pi / 2, 100)
-        phi = np.linspace(-np.pi, np.pi, 100)
-        theta, phi = np.meshgrid(theta, phi)
-        x = a * (1/np.cos(theta)) * np.cos(phi)
-        y = b * (1/np.cos(theta)) * np.sin(phi)
-        z = c * np.tan(theta)
-        points = np.stack([x, y, z]).reshape(3, -1)
-
-        return points
