@@ -4,7 +4,7 @@ import math
 import numpy as np
 from scipy.spatial import ConvexHull
 import trimesh
-
+from pointcloud import Pointcloud
 
 
 class Shape(object):
@@ -27,11 +27,15 @@ class Shape(object):
 
     def save_as_mesh(self, filename, format="ply"):
         m = trimesh.Trimesh(vertices=self.points.T, faces=self.faces_idxs)
+        # m.vertices = self.points.T
+        print('Generated / Trimesh faces: {}, {} ... Generated / Trimesh Vertices: {}, {} '.format(
+            self.faces_idxs.shape, m.faces.shape, self.points.shape, m.vertices.shape))
         # Make sure that the face orinetations are ok
         trimesh.repair.fix_normals(m, multibody=True)
         trimesh.repair.fix_winding(m)
         assert m.is_winding_consistent == True
-        m.export(filename)
+        m.export(filename)        
+    
 
     def sample_faces(self, N=1000):
         m = trimesh.Trimesh(vertices=self.points.T, faces=self.faces_idxs)
@@ -60,26 +64,7 @@ class Shape(object):
         self._points = self.points + t
 
         return self
-
-
-    @classmethod
-    def from_shapes(cls, shapes):
-        # Make sure that the input is a list of shapes
-        isinstance(shapes, list)
-        points = []
-        triangles = []
-        for i, s in enumerate(shapes):
-            if len(points) == 0:
-                triangles.append(s.faces_idxs)
-            else:
-                triangles.append(s.faces_idxs + i*points[-1].shape[1])
-            points.append(s.points)
-
-        return cls(
-            np.hstack(points),
-            np.vstack(triangles)
-        )
-
+        
     @staticmethod
     def get_orientation_of_face(points, face_idxs):
         # face_idxs corresponds to the indices of a single face
@@ -138,12 +123,13 @@ class ConvexShape(Shape):
     @property
     def faces_idxs(self):
         if self._faces_idxs is None:
-            self._faces_idxs = np.array(self.cv.simplices)
+            #mesh = trimesh.load('reference_faces.ply')
+            self._faces_idxs = np.array(self.cv.simplices) # np.array(mesh.faces)
             self._make_consistent_orientation_of_faces()
         return self._faces_idxs
 
     def _make_consistent_orientation_of_faces(self):
-        for i, face_idxs in zip(range(self.cv.nsimplex), self.faces_idxs):
+        for i, face_idxs in zip(range(self.faces_idxs.shape[0]), self.faces_idxs):
             # Compute the orientation for the current face
             orientation = Shape.get_orientation_of_face(self.points, face_idxs)
             if orientation < 0:
@@ -153,90 +139,11 @@ class ConvexShape(Shape):
                     Shape.fix_orientation_of_face(self.points, face_idxs)
 
 
-class Cuboid(ConvexShape):
-    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max):
-        super(Cuboid, self).__init__(self._create_points(
-            x_min, x_max, y_min, y_max, z_min, z_max
-        ))
-
-    def _create_points(self, x_min, x_max, y_min, y_max, z_min, z_max):
-        vertices = np.array([
-            [x_min, x_max],
-            [y_min, y_max],
-            [z_min, z_max]
-        ])
-        idxs = np.array([
-            [i, j, k]
-            for i in range(2)
-            for j in range(2)
-            for k in range(2)
-        ])
-
-        return vertices[np.tile(range(3), (8, 1)), idxs].T
-
-    @staticmethod
-    def keep_points_inside_cube(x, y, z, x_min, x_max,
-                                y_min, y_max, z_min, z_max):
-        c1 = np.logical_and(
-            np.logical_and(x >= x_min, x <= x_max),
-            np.logical_and(y >= y_min, y <= y_max)
-        )
-        c2 = np.logical_and(
-            np.logical_and(y >= y_min, y <= y_max),
-            np.logical_and(z >= z_min, z <= z_max)
-        )
-        c3 = np.logical_and(
-            np.logical_and(x >= x_min, x <= x_max),
-            np.logical_and(z >= z_min, z <= z_max)
-        )
-        c4 = np.logical_and(c1, z == z_min)
-        c5 = np.logical_and(c1, z == z_max)
-        c6 = np.logical_and(c2, x == x_min)
-        c7 = np.logical_and(c2, x == x_max)
-        c8 = np.logical_and(c3, y == y_min)
-        c9 = np.logical_and(c3, y == y_max)
-        return np.logical_or(
-            np.logical_or(np.logical_or(c5, c6), np.logical_or(c7, c8)),
-            np.logical_or(c4, c9)
-            )
-
-
-class Sphere(ConvexShape):
-    def __init__(self, radius):
-        self._radius = radius
-        super(Sphere, self).__init__(Sphere.fibonacci_sphere(self._radius))
-
-    @property
-    def radius(self):
-        return self._radius
-
-    @staticmethod
-    def fibonacci_sphere(radius, samples=100):
-        # From stackoverflow on How to evenly distribute N points on a sphere
-        points = []
-        offset = 2./samples
-        increment = math.pi * (3. - math.sqrt(5.))
-
-        # Point in the unit sphere
-        for i in range(samples):
-            y = ((i * offset) - 1) + (offset / 2)
-            r = math.sqrt(1 - pow(y, 2))
-
-            phi = ((i + 1) % samples) * increment
-
-            x = math.cos(phi) * r
-            z = math.sin(phi) * r
-
-            points.append([x, y, z])
-
-        return np.array(points).T * radius
-
-
 def signed_exp(x, n):
     return np.sign(x) * (np.abs(x) ** n)
 
 class Ellipsoid(ConvexShape):
-    def __init__(self, x_scale=1, y_scale=1, z_scale=1, epsilons=[0.5, 0.5]):
+    def __init__(self, x_scale=1, y_scale=1, z_scale=1, epsilons=[1, 1]):
         """
         Params:
             yscale [0, 2]
@@ -252,6 +159,7 @@ class Ellipsoid(ConvexShape):
         theta = np.linspace(-np.pi/2, np.pi/2, 100)
         phi = np.linspace(-np.pi, np.pi, 100)
         theta, phi = np.meshgrid(theta, phi)
+
         x = x_scale * signed_exp(np.cos(theta), eps[0]) * signed_exp(np.cos(phi), eps[1])
         y = y_scale * signed_exp(np.cos(theta), eps[0]) * signed_exp(np.sin(phi), eps[1])
         z = z_scale * signed_exp(np.sin(theta), eps[0])
