@@ -2,9 +2,8 @@ from itertools import permutations
 import math
 
 import numpy as np
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, Delaunay
 import trimesh
-from pointcloud import Pointcloud
 
 
 class Shape(object):
@@ -26,7 +25,7 @@ class Shape(object):
         return self._faces_idxs
 
     def save_as_mesh(self, filename, format="ply"):
-        m = trimesh.Trimesh(vertices=self.points.T, faces=self.faces_idxs)
+        m = trimesh.Trimesh(vertices=self.points.T)
         # m.vertices = self.points.T
         print('Generated / Trimesh faces: {}, {} ... Generated / Trimesh Vertices: {}, {} '.format(
             self.faces_idxs.shape, m.faces.shape, self.points.shape, m.vertices.shape))
@@ -34,8 +33,8 @@ class Shape(object):
         trimesh.repair.fix_normals(m, multibody=True)
         trimesh.repair.fix_winding(m)
         assert m.is_winding_consistent == True
-        m.export(filename)        
-    
+        m.export(filename)
+
 
     def sample_faces(self, N=1000):
         m = trimesh.Trimesh(vertices=self.points.T, faces=self.faces_idxs)
@@ -64,7 +63,7 @@ class Shape(object):
         self._points = self.points + t
 
         return self
-        
+
     @staticmethod
     def get_orientation_of_face(points, face_idxs):
         # face_idxs corresponds to the indices of a single face
@@ -117,14 +116,15 @@ class ConvexShape(Shape):
     @property
     def cv(self):
         if self._cv is None:
-            self._cv = ConvexHull(self.points.T)
+            self._cv = Delaunay(self.points.T)
         return self._cv
 
     @property
     def faces_idxs(self):
         if self._faces_idxs is None:
             #mesh = trimesh.load('reference_faces.ply')
-            self._faces_idxs = np.array(self.cv.simplices) # np.array(mesh.faces)
+            self._faces_idxs = np.array(self.cv.simplices[:, 1:]) # np.array(mesh.faces)
+            print(self._faces_idxs.shape)
             self._make_consistent_orientation_of_faces()
         return self._faces_idxs
 
@@ -167,28 +167,4 @@ class Ellipsoid(ConvexShape):
 
         return points
 
-class Toroid(ConvexShape):
-    def __init__(self, x_scale=1, y_scale=1, z_scale=1, inner_radius=0.5, epsilons=[0.5, 0.5]):
-        """
-        Params:
-            yscale [0, 2]
-            xscale [0, 2]
-            height [0, 5]
-            inner radius [0, 2]
-            epsilons: [e1: vertical squareness, e2: horizontal squareness] [0.25, 1]
-        """
-        super(Toroid, self).__init__(
-            self._create_points(x_scale, y_scale, z_scale, inner_radius, epsilons)
-        )
-
-    def _create_points(self, x_scale, y_scale, z_scale, inner_radius, eps):
-        theta = np.linspace(-np.pi, np.pi, 100)
-        phi = np.linspace(-np.pi, np.pi, 100)
-        theta, phi = np.meshgrid(theta, phi)
-        x = x_scale * (inner_radius + signed_exp(np.cos(theta), eps[0])) * signed_exp(np.cos(phi), eps[1])
-        y = y_scale * (inner_radius + signed_exp(np.cos(theta), eps[0])) * signed_exp(np.sin(phi), eps[1])
-        z = z_scale * signed_exp(np.sin(theta), eps[1])
-        points = np.stack([x, y, z]).reshape(3, -1)
-
-        return points
 
