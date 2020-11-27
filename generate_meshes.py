@@ -4,7 +4,7 @@ import os
 
 import logging
 import superquadrics
-from texture_creation import random_dots
+from random_dots import random_dots
 
 root_dir = 'objects/'
 
