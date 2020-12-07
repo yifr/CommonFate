@@ -5,6 +5,7 @@ import pyrender
 import trimesh
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from PIL import Image
 from pyquaternion import Quaternion
 
 def render_frame(mesh, rotation_axis=None, degrees=0, transformation_matrix=None):
@@ -57,8 +58,10 @@ def render_frame_sequence(shape, scene_dir, n_frames=200):
     Renders N frames defining a 360 degree rotation about a random axis
     Saves individual frame for each step in the rotation
     """
+    img_dir = scene_dir + '/images'
     tmesh = pyrender.Mesh.from_trimesh(shape)
-    scene = pyrender.Scene(ambient_light=[500, 500, 500, 1000])
+    bg_color =
+    scene = pyrender.Scene(ambient_light=[500, 500, 500, 1000], bg_color=scene_dir + '/texture.jpg')
     camera = pyrender.PerspectiveCamera(yfov=np.pi / 4.0)
 
     c = 2**-0.5
@@ -70,13 +73,15 @@ def render_frame_sequence(shape, scene_dir, n_frames=200):
     mesh_node = scene.add(tmesh, pose=np.eye(4), name='mesh')
     camera_node = scene.add(camera, pose=pose)
 
-    r = pyrender.OffscreenRenderer(640, 480)
+    x = 640
+    y = 480
+    r = pyrender.OffscreenRenderer(x, y)
     rotation_axis = np.random.uniform(-1, 1, size=3)
-    data = {'frames': np.array(),
-            'rotation': np.array(),
-            'quaternion': np.array(),
-            'angle': np.array(),
-            'axis': np.array()}
+    data = {'frames': np.zeros(shape=[n_frames, y, x, 3]),
+            'rotation': np.zeros(shape=[n_frames, 3, 3]),
+            'quaternion': np.zeros(shape=[n_frames, 4]),
+            'angle': np.zeros(shape=[n_frames, 1]),
+            'axis': np.zeros(shape=[n_frames, 3])}
 
 
     fig = plt.figure()
@@ -85,14 +90,14 @@ def render_frame_sequence(shape, scene_dir, n_frames=200):
 
     for i, d in tqdm(enumerate(degrees)):
         q = Quaternion(axis=rotation_axis, degrees=d)
-        scene.update_pose('mesh', q.transformation_matrix)
+        scene.set_pose(mesh_node, q.transformation_matrix)
         color, depth = r.render(scene)
 
-        data['frames'].append(color, axis=0)
-        data['rotation'].append(q.rotation_matrix, axis=0)
-        data['quaternion'].append(q.elements, axis=0)
-        data['angle'].append(q.angle, axis=0)
-        data['axis'].append(q.axis, axis=0)
+        data['frames'][i] = color
+        data['rotation'][i] = q.rotation_matrix
+        data['quaternion'][i] = q.elements
+        data['angle'][i] = q.angle
+        data['axis'][i] =  q.axis
 
         plt.imshow(color)
 
@@ -121,9 +126,9 @@ def create_vid(base_dir, output_name, frame_rate=25):
         return False
 
 def main():
-    n_scenes = 1
+    n_scenes = 101
     n_frames = 200
-    for scene in range(n_scenes):
+    for scene in range(n_scenes, n_scenes+1):
         base_dir = 'objects/scene_%03d'%scene
         obj_file = base_dir + '/textured.obj'
 
