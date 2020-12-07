@@ -2,17 +2,50 @@ import os
 import bpy
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import blender_utils as bl_utils
+from PIL import Image, ImageDraw
 from pyquaternion import Quaternion
 
+def dot_texture(width=1024, height=1024, min_diameter=10, max_diameter=20, n_dots=900):
+    img  = Image.new('RGB', (w, h), color = 'white')
+    draw = ImageDraw.Draw(img)
+    
+    for _ in range(n_dots):
+        x, y = np.random.randint(0,width), np.random.randint(0,height)
+        diam = np.random.randint(min_diameter, max_diameter)
+        draw.ellipse([x,y,x+diam,y+diam], fill='black')
+    
+    fig = plt.figure(figsize=(16,12))
+    plt.imshow(img)
+    return fig
 
-def set_mode(mode):
-    scene = bpy.context.scene
-    #scene.layers = [True] * 20 # Show all layers
+def wrap_texture(img):
+    """
+    Texture by wrapping an image around a mesh
+    Assumes only one mesh active at a time
+    Params:
+        img: :obj: opened blender image
+    """
+    bl_utils.cube_project()
 
-    for obj in scene.objects:
-        if obj.type == 'MESH':
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode=mode)
+    # Create new texture slot
+    mat.use_nodes = True
+    mat = bpy.data.materials.new(name="texture")
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+
+    # Add image to texture
+    texImage = mat.node_tree.nodes.new('ShaderNodeTexImage')
+    texImage.image = img
+    mat.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
+
+    ob = bpy.context.view_layer.objects.active
+
+    # Assign texture to object
+    if ob.data.materials:
+        ob.data.materials[0] = mat
+    else:
+        ob.data.materials.append(mat)
 
 
 def rotate(obj, n_frames=100):
@@ -99,26 +132,6 @@ def render(output_dir, add_background=False):
     # Render video
     scene.render.filepath = output_dir  
     bpy.ops.render.render(animation=True)
-
-def delete_all(type):
-    """
-    Delete specific type of object
-    
-    Parameters
-    -----------
-        type: name of object type to delete (ie; 'MESH' | 'LIGHT' | 'CAMERA')
-    
-    Returns 
-    ----------
-        nothing, but deletes specified objects
-    """
-    for o in bpy.context.scene.objects:
-        if o.type == type:
-            o.select_set(True)
-        else:
-            o.select_set(False)
-    set_mode('OBJECT')
-    bpy.ops.object.delete()
     
 def set_light_source(type, location, rotation):
     """
@@ -131,7 +144,7 @@ def set_light_source(type, location, rotation):
         rotation: Euler angle rotation of light
     """    
     type = type.upper()
-    delete_all(type='LIGHT') # Delete existing lights
+    bl_utils.delete_all(type='LIGHT') # Delete existing lights
     light_data = bpy.data.lights.new(name='Light', type=type)
     light_object = bpy.data.objects.new(name='Light', object_data=light_data)
     bpy.context.collection.objects.link(light_object)
@@ -140,20 +153,53 @@ def set_light_source(type, location, rotation):
     light_object.location = location
     light_object.rotation_euler = rotation
     
+
+def main():
+    # Delete default cube
+    bl_utils.set_mode('OBJECT')
+    bl_utils.delete_all('MESH')
     
-set_mode('EDIT')
+    # Set lighting source emanating from camera
+    camera_loc = bpy.data.objects['Camera'].location
+    camera_rot = bpy.data.objects['Camera'].rotation_euler
+    set_light_source('SUN', camera_loc, camera_rot)
 
-# Set lighting source emanating from camera
-camera_loc = bpy.data.objects['Camera'].location
-camera_rot = bpy.data.objects['Camera'].rotation_euler
-set_light_source('Sun', camera_loc, camera_rot)
+    n_scenes = 143
+    base_dir = 'objects'
+    for scene_num in range(n_scenes):
+        scene_dir = os.path.join(base_dir, 'scene_%03d' % scene_num)
+        image_dir = os.path.join(base_dir, 'images')
+        obj_file = os.path.join(scene_dir, 'mesh.obj')
+        data_file = os.path.join(scene_dir, 'data.npy')
+        texture_file = os.path.join(scene_dir, 'texture.jpg')
 
-obj = bpy.data.objects['mesh.118']
+        # Create random dot texture image and save to a file
+        min_dot_diam = np.random.randint(5, 15)
+        max_dot_diam = np.random.randint(20, 30)
+        n_dots=np.random.randint(800, 1200)
+        texture = dot_texture(min_diameter=min_dot_diam, max_diameter=max_dot_diam, n_dots=n_dots)
+        plt.axes('off')
+        plt.savefig(texture_file)
+        plt.close()
 
-# Remove specular tint
-mat_nodes = bpy.data.materials[-1].node_tree.nodes
-mat_nodes['Principled BSDF'].inputs[5].default_value = 0
+        # Load texture image and mesh
+        img = bl_utils.load_img(texture_file)
+        mesh = bl_utils.load_obj(obj_file)
 
-data = rotate(obj)
-np.save('/Users/yoni/MIT/projects/CommonFate/btest/data.npy', data)
-render('/Users/yoni/MIT/projects/CommonFate/btest/images')
+        # Wrap/edit texture and save updated mesh
+        wrap_texture(img)
+        mat_nodes = bpy.data.materials[-1].node_tree.nodes
+        mat_nodes['Principled BSDF'].inputs[5].default_value = 0   # Set specular tint to 0
+        bl_utils.export_obj(mesh, scene_dir)
+
+        # Animate rotation
+        data = rotate(mesh)
+
+        # Save rotation parameters and render video
+        np.save(data_file, data)
+        render(output_dir=image_dir)
+        
+        bl_utils.delete_all(type='MESH')
+
+if __name__=='__main__':
+    main()

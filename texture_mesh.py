@@ -7,8 +7,10 @@ def texture(img):
     Params:
         img: :obj: opened blender image
     """
+    # Create UV map using a cube projection
+    cube_project()
 
-    # Create new texture slot
+    # Create new texture slot    
     mat = bpy.data.materials.new(name="texture")
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
@@ -84,7 +86,6 @@ def main():
         img = load_img(texture_file)
         mesh = load_obj(obj_file)
 
-        cube_project()
         texture(img)
         export_obj(mesh, scene_dir)
         delete()
