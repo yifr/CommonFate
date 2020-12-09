@@ -2,7 +2,6 @@ import os
 import bpy
 import argparse
 import numpy as np
-from tqdm import tqdm
 from PIL import Image, ImageDraw
 from pyquaternion import Quaternion
 
@@ -48,6 +47,7 @@ def cube_project():
 
 def load_img(path):
     img = bpy.data.images.load(filepath=path)
+    print(img)
     return img
 
 def load_obj(path):
@@ -156,7 +156,7 @@ def rotate(obj, n_frames=100):
     degrees = np.linspace(0, 360, n_frames)
 
     # Add frame for rotation
-    for frame, degree in tqdm(enumerate(degrees)):
+    for frame, degree in enumerate(degrees):
         q = Quaternion(axis=rotation_axis, degrees=degree)
 
         obj.rotation_quaternion = q.elements
@@ -231,14 +231,14 @@ def main():
         image_dir = os.path.join(scene_dir, 'images')
         obj_file = os.path.join(scene_dir, 'textured.obj')
         data_file = os.path.join(scene_dir, 'data.npy')
-        texture_file = os.path.join(scene_dir, 'texture.jpg')
+        texture_file = os.path.join(scene_dir, 'texture.png')
 
         # Create random dot texture image and save to a file
         min_dot_diam = np.random.randint(5, 15)
         max_dot_diam = np.random.randint(20, 30)
         n_dots=np.random.randint(800, 1200)
         texture = dot_texture(min_diameter=min_dot_diam, max_diameter=max_dot_diam, n_dots=n_dots)
-        texture.save(texture_file)
+        texture.save(texture_file, 'PNG')
 
         # Load texture image and mesh
         img = load_img(texture_file)
