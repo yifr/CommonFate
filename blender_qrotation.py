@@ -64,6 +64,36 @@ def export_obj(obj, scene_dir, fname='textured.obj'):
     output_file = os.path.join(scene_dir, fname)
     bpy.ops.export_scene.obj(filepath=output_file, use_selection=True)
 
+def enable_gpus(device_type, use_cpus=False):
+    for scene in bpy.data.scenes:
+        scene.cycles.device = 'GPU'
+
+    preferences = bpy.context.preferences
+    cycles_preferences = preferences.addons["cycles"].preferences
+    cuda_devices, opencl_devices = cycles_preferences.get_devices()
+
+    if device_type == "CUDA":
+        devices = cuda_devices
+    elif device_type == "OPENCL":
+        devices = opencl_devices
+    else:
+        raise RuntimeError("Unsupported device type")
+
+    activated_gpus = []
+
+    for device in devices:
+        if device.type == "CPU":
+            device.use = use_cpus
+        else:
+            device.use = True
+            activated_gpus.append(device.name)
+
+    cycles_preferences.compute_device_type = device_type
+    bpy.context.scene.cycles.device = "GPU"
+
+    print('Using following GPUs: ', activated_gpus)
+    return activated_gpus
+
 def dot_texture(width=1024, height=1024, min_diameter=10, max_diameter=20, n_dots=900):
     img  = Image.new('RGB', (width, height), color = 'white')
     draw = ImageDraw.Draw(img)
@@ -82,9 +112,9 @@ def set_light_source(light_type, location, rotation):
 
     Parameters
     -----------
-        type: Light type ('POINT' | 'SUN' | 'SPOT' | 'AREA')
-        location: Vector location of light
-        rotation: Euler angle rotation of light
+    type: Light type ('POINT' | 'SUN' | 'SPOT' | 'AREA')
+    location: Vector location of light
+    rotation: Euler angle rotation of light
     """
     light_type = light_type.upper()
     delete_all(obj_type='LIGHT') # Delete existing lights
@@ -132,12 +162,12 @@ def rotate(obj, n_frames=100):
 
     Params
     ------
-        obj: Mesh object to be rotated
-        n_frames: how many frames for the video
+    obj: Mesh object to be rotated
+    n_frames: how many frames for the video
 
     Returns
     -------
-        Dictionary containing pose information at each step
+    Dictionary containing pose information at each step
     """
     data = {'rotation': np.zeros(shape=[n_frames, 4]),
             'angle': np.zeros(shape=[n_frames, 1]),
@@ -209,6 +239,7 @@ def render(output_dir, add_background=False):
     node_tree.links.new(alpha_over.outputs['Image'], composite.inputs['Image'])
 
     # Render video
+    bpy.context.scene.render.engine = 'CYCLES'  # use cycles for headless rendering
     scene.render.filepath = output_dir
     bpy.ops.render.render(animation=True)
 
@@ -223,9 +254,9 @@ def main():
     camera_rot = bpy.data.objects['Camera'].rotation_euler
     set_light_source('SUN', camera_loc, camera_rot)
 
-    base_dir = 'objects'
-    n_scenes = 64
-    for scene_num in range(n_scenes, n_scenes+1):
+    base_dir = 'data'
+    n_scenes = 144
+    for scene_num in range(92, n_scenes):
         scene_dir = os.path.join(base_dir, 'scene_%03d' % scene_num)
         print('PROCESSING ', scene_dir.upper())
         image_dir = os.path.join(scene_dir, 'images')
@@ -266,4 +297,5 @@ def main():
         delete_all(obj_type='MESH')
 
 if __name__=='__main__':
+    enable_gpus("CUDA")
     main()
