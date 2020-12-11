@@ -1,6 +1,10 @@
 #!/bin/bash
-#SBATCH -t 00:05:00          # walltime = 1 hours and 30 minutes
-#SBATCH -N 1                 # one node
-#SBATCH -n 1                 # two CPU (hyperthreaded) cores
-# Execute commands to run your program here. Here is an example of python.
+#SBATCH --job-name blender_rendering
+#SBATCH -t 4:00:00
+#SBATCH -N 1
+#SBATCH --gres=gpu:5
+#SBATCH --constraint=any-gpu
+#SBATCH -p normal
+#SBATCH --mem=2G
+
 Blender/blender -b --python blender_qrotation.py
