@@ -1,6 +1,7 @@
 #!/bin/bash
 
 root_dir=$1
+
 i=0
 total_start=$SECONDS
 for scene in $root_dir/* ; do
@@ -13,7 +14,7 @@ for scene in $root_dir/* ; do
         if [[ "$inputfile" != *"$pref"* ]] && [[ "$inputfile" == *"$fstart"* ]]; then
             outputfile="${inputfile%.*}_sm.png"
             echo "    $inputfile --> $outputfile"
-            convert "$inputfile" -gravity Center -extent 1024x1024 -resize 128x128 "$outputfile"
+            convert "$inputfile" -gravity Center -extent 128x128 -resize 64x64 "$outputfile"
             # convert "$outputfile" -resize 64x64 "$outputfile"
             # convert "$outputfile" -adaptive-resize 64x64 "$outputfile"
         fi
@@ -25,5 +26,5 @@ done
 duration=$(($SECONDS - $total_start))
 echo "Total time taken: $duration seconds"
 
-echo "Making videos"
-./make_videos.sh $1
+# echo "Making videos"
+# ./make_videos.sh $1

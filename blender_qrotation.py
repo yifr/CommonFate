@@ -65,8 +65,12 @@ def export_obj(obj, scene_dir, fname='textured.obj'):
     bpy.ops.export_scene.obj(filepath=output_file, use_selection=True)
 
 def enable_gpus(device_type, use_cpus=False):
-    for scene in bpy.data.scenes:
-        scene.cycles.device = 'GPU'
+    """
+    Sets device as GPU and adjusts rendering tile size
+    accordingly
+    """
+    scene = bpy.data.scenes[-1]
+    scene.render.engine = 'CYCLES'  # use cycles for headless rendering
 
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
@@ -88,8 +92,11 @@ def enable_gpus(device_type, use_cpus=False):
             device.use = True
             activated_gpus.append(device.name)
 
+    scene.cycles.device = "GPU"
     cycles_preferences.compute_device_type = device_type
-    bpy.context.scene.cycles.device = "GPU"
+
+    scene.render.tile_x = 256
+    scene.render.tile_y = 256
 
     print('Using following GPUs: ', activated_gpus)
     return activated_gpus
@@ -217,7 +224,7 @@ def render(output_dir, add_background=False):
     """
     # Add img_ prefix to output file names
     if output_dir[:-4] != 'img_':
-        output_dir = os.path.join(output_dir, 'img_')
+        output_dir = os.path.join(output_dir, 'img_128_')
 
     scene = bpy.data.scenes['Scene']
 
@@ -238,8 +245,16 @@ def render(output_dir, add_background=False):
     node_tree.links.new(render_layers.outputs['Image'], alpha_over.inputs[2])
     node_tree.links.new(alpha_over.outputs['Image'], composite.inputs['Image'])
 
+    # Set properties to increase speed of render time
+    scene.render.use_border = True
+    scene.render.use_crop_to_border = True
+    scene.render.resolution_x = 128
+    scene.render.resolution_y = 128
+    scene.render.image_settings.color_mode = 'BW'
+    scene.render.image_settings.compression = 0
+    scene.cycles.samples = 256
+
     # Render video
-    bpy.context.scene.render.engine = 'CYCLES'  # use cycles for headless rendering
     scene.render.filepath = output_dir
     bpy.ops.render.render(animation=True)
 
@@ -254,11 +269,13 @@ def main():
     camera_rot = bpy.data.objects['Camera'].rotation_euler
     set_light_source('SUN', camera_loc, camera_rot)
 
-    base_dir = 'data'
+    base_dir = 'scenes'
     n_scenes = 144
-    for scene_num in range(92, n_scenes):
+    for scene_num in range(n_scenes):
         scene_dir = os.path.join(base_dir, 'scene_%03d' % scene_num)
         print('PROCESSING ', scene_dir.upper())
+
+        # Set paths
         image_dir = os.path.join(scene_dir, 'images')
         obj_file = os.path.join(scene_dir, 'textured.obj')
         data_file = os.path.join(scene_dir, 'data.npy')
@@ -266,10 +283,10 @@ def main():
 
         # Create random dot texture image and save to a file
         min_dot_diam = np.random.randint(5, 15)
-        max_dot_diam = np.random.randint(20, 30)
-        n_dots=np.random.randint(800, 1200)
+        max_dot_diam = np.random.randint(80, 100)
+        n_dots=np.random.randint(200, 400)
         texture = dot_texture(min_diameter=min_dot_diam, max_diameter=max_dot_diam, n_dots=n_dots)
-        texture.save(texture_file, 'PNG')
+        texture.save(texture_file, format='png')
 
         # Load texture image and mesh
         img = load_img(texture_file)
@@ -278,12 +295,24 @@ def main():
 
         # Wrap/edit texture
         wrap_texture(img)
-        bsdf = bpy.data.materials[-1].node_tree.nodes['Principled BSDF']
+
+        # Set material properties
+        mat = bpy.data.materials[-1]
+        bsdf = mat.node_tree.nodes['Principled BSDF']
         bsdf.inputs['Specular'].default_value = 0
         bsdf.inputs['Specular Tint'].default_value = 0
-        # bsdf.inputs['Roughness'].default_value = 0
-        # bsdf.inputs['Sheen Tint'].default_value = 0
+        bsdf.inputs['Roughness'].default_value = 0
+        bsdf.inputs['Sheen Tint'].default_value = 0
         bsdf.inputs['Clearcoat'].default_value = 0
+        bsdf.inputs['Subsurface Radius'].default_value = [0, 0, 0]
+        bsdf.inputs['IOR'].default_value = 0
+        mat.cycles.use_transparent_shadow = False
+
+        # Set light properties
+        scene = bpy.data.scenes[-1]
+        scene.render.engine = 'CYCLES'
+        light = bpy.data.lights[-1]
+        light.cycles['cast_shadow'] = False
 
         # Animate rotation
         obj = bpy.data.objects[mesh_name]
