@@ -27,6 +27,7 @@ class Scene(Dataset):
         self.translation = data_dict['translation']
         self.angle = data_dict['angle']
         self.axis = data_dict['axis']
+        self.params = self.get_exponents()
 
     def __len__(self):
         """
@@ -39,21 +40,24 @@ class Scene(Dataset):
         Return frame image, shape and rotation parameters for
         a given frame
         """
-        if self.img_sizes == 128:
-            filename = 'img_128_%04d.png' % idx
-        elif self.img_sizes == 64:
-            filename = 'img_128_%04d_sm.png' % idx
+        frame_idx = idx + 1 # frame images start from 0001
+        if self.img_size == 128:
+            filename = 'img_128_%04d.png' % frame_idx
+        elif self.img_size == 64:
+            filename = 'img_128_%04d_sm.png' % frame_idx
         else:
-            filename = 'img_%04d.png' % idx
+            filename = 'img_%04d.png' % frame_idx
 
+        filename = os.path.join(self.image_dir, filename)
         img_raw = Image.open(filename)
-        img = transforms.ToTensor(img_raw).to(self.device)
+        img = transforms.ToTensor()(img_raw).to(self.device)
         rotation = torch.tensor(self.rotations[idx]).to(self.device)
         translation = torch.tensor(self.translation[idx]).to(self.device)
         angle = torch.tensor(self.angle[idx]).to(self.device)
         axis = torch.tensor(self.axis[idx]).to(self.device)
 
-        return img, rotation, translation, angle, axis
+        return {'frame': img, 'rotation': rotation, 'translation': translation,
+                'angle': angle, 'axis': axis, 'shape_params': self.params}
 
     def get_exponents(self):
         """
@@ -65,14 +69,13 @@ class Scene(Dataset):
         """
         param_file = os.path.join(self.scene_dir, 'params.txt')
         param_data = open(param_file, 'r').read()
-        params = torch.tensor([float(x.split(': ')[1]) for x in d.split('\n'), dtype='float32'])
+        params = torch.tensor([float(x.split(': ')[1]) for x in param_data.split('\n')], dtype=torch.float32)
         return params
 
-class SceneLoader(Dataset):
+class SceneLoader():
     """
     Describes a dataset over scenes. Each scene directory contains
-    an image folder with N frames of a superquadric in rotation
-
+    an image folder with N frames of a superquadric in rotation.
     There's also a numpy dict with entries for the quaternion
     rotation, angle, (position and translation - right now these are static)
     of the shape. Lastly, we have a small text file with the exponents
@@ -81,7 +84,9 @@ class SceneLoader(Dataset):
     assuming A = B = C = 1
     """
 
-    def __init__(self, root_dir, transforms=None, device='cuda', n_scenes=0, n_frames=100, img_size=128):
+    def __init__(self, root_dir, transforms=None, device='cuda',
+                 n_scenes=0, n_frames=100, img_size=128,
+                 batch_size=100, train_size=0.8):
         """
         Args:
             root_dir (string): root directory for the generated scenes
@@ -95,13 +100,30 @@ class SceneLoader(Dataset):
         self.root_dir = root_dir
         self.transforms = transforms
         self.device = device
-        self.n_scenes = n_scenes
+        self.batch_size = batch_size # Batch size is defined over frames per scene
 
         if n_scenes == 0:
             self.n_scenes = len(os.listdir(root_dir))
+        else:
+            self.n_scenes = n_scenes
 
         self.n_frames = n_frames
         self.img_size = img_size
+        self._train = True
+
+        self.train_size = train_size
+        self.train_test_split(train_size)
+
+    def train_test_split(self, train_size=0.8):
+        n_train = int(train_size * self.n_scenes)
+        self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
+        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs)
+
+    def eval(self):
+        self._train = False
+
+    def train(self):
+        self._train = True
 
     def __len__(self):
         """
@@ -109,7 +131,8 @@ class SceneLoader(Dataset):
         """
         return self.n_scenes
 
-    def __getitem__(self, idx):
+
+    def next(self, idx):
         """
         Compiles scene data for a scene at a given index
         """
@@ -117,4 +140,7 @@ class SceneLoader(Dataset):
                       n_frames=self.n_frames, img_size=self.img_size,
                       transforms=self.transforms)
 
-        return scene
+
+        scene_loader = DataLoader(scene, batch_size=self.batch_size)
+        data = iter(scene_loader).next()
+        return data
