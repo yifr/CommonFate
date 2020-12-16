@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
@@ -14,34 +15,48 @@ class SimpleCNN(nn.Module):
     """
     def __init__(self):
         super().__init__()
+        self.layer1 = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Dropout(0.5)
+        )
+        self.layer2 = torch.nn.Sequential(
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Dropout(p=0.5)
+        )
+        self.layer3 = torch.nn.Sequential(
+            torch.nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+            torch.nn.Dropout(p=0.25)
+        )
 
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=4, stride=1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(16 * 4 * 4, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 4)
+        self.fc1 = torch.nn.Linear(128*17*17, 625, bias=True)
+        torch.nn.init.xavier_uniform_(self.fc1.weight)
+        self.layer4 = torch.nn.Sequential(
+            self.fc1,
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=0.5)
+        )
+        self.fc2 = torch.nn.Linear(625, 4, bias=True)
+        torch.nn.init.xavier_uniform_(self.fc2.weight) # initialize parameters
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = out.view(out.size(0), -1)   # Flatten them for FC
+        out = self.fc1(out)
+        out = self.fc2(out)
+        return out
+
 
     @property
     def device(self):
         return next(self.parameters()).device
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        print(x.shape)
-        x = self.pool(F.relu(self.conv2(x)))
-        print(x.shape)
-        x = x.view(-1, 16 * 4 * 4)
-        print(x.shape)
-        x = F.relu(self.fc1(x))
-        print(x.shape)
-        x = F.relu(self.fc2(x))
-        print(x.shape)
-        x = self.fc3(x)
-        print(x.shape)
-        return x
 
 
 class Bottleneck(nn.Module):
@@ -79,7 +94,7 @@ class Bottleneck(nn.Module):
             self.downsample = downsample
             self.stride = stride
 
-            def forward(self, x: Tensor) -> Tensor:
+            def forward(self, x):
                 identity = x
 
                 out = self.conv1(x)
@@ -106,7 +121,7 @@ class ResNet(models.resnet.ResNet):
     Overrides ResNet architecture for a 1 channel input
     """
     def __init__(self, block, layers, num_classes=4):
-        super(resnet152_mech, self).__init__(block, layers, num_classes)
+        super(ResNet, self).__init__(block, layers, num_classes)
         self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1, padding=1,
                                bias=False)
 
