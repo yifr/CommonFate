@@ -2,7 +2,7 @@ import torch
 import util
 
 
-def train(model, optimizer, stats, run_args=None):
+def train(model, data, optimizer, stats, run_args=None):
     device = model.device
     checkpoint_path = util.get_checkpoint_path(run_args)
     num_iterations_so_far = len(stats.losses)

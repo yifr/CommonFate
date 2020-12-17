@@ -119,12 +119,6 @@ class SceneLoader():
         self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
         self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs)
 
-    def eval(self):
-        self._train = False
-
-    def train(self):
-        self._train = True
-
     def __len__(self):
         """
         Returns total number of scenes in root directory
@@ -132,7 +126,7 @@ class SceneLoader():
         return self.n_scenes
 
 
-    def next(self, idx):
+    def get_scene(self, idx):
         """
         Compiles scene data for a scene at a given index
         """

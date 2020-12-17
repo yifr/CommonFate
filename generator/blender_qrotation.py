@@ -224,7 +224,7 @@ def render(output_dir, add_background=False):
     """
     # Add img_ prefix to output file names
     if output_dir[:-4] != 'img_':
-        output_dir = os.path.join(output_dir, 'img_128_')
+        output_dir = os.path.join(output_dir, 'test_')
 
     scene = bpy.data.scenes['Scene']
 
@@ -248,8 +248,8 @@ def render(output_dir, add_background=False):
     # Set properties to increase speed of render time
     scene.render.use_border = True
     scene.render.use_crop_to_border = True
-    scene.render.resolution_x = 128
-    scene.render.resolution_y = 128
+    scene.render.resolution_x = 256
+    scene.render.resolution_y = 256
     scene.render.image_settings.color_mode = 'BW'
     scene.render.image_settings.compression = 0
     scene.cycles.samples = 256
@@ -269,9 +269,9 @@ def main():
     camera_rot = bpy.data.objects['Camera'].rotation_euler
     set_light_source('SUN', camera_loc, camera_rot)
 
-    base_dir = 'scenes'
-    n_scenes = 144
-    for scene_num in range(n_scenes):
+    base_dir = 'objects'
+    n_scenes = 47
+    for scene_num in range(n_scenes, n_scenes+1):
         scene_dir = os.path.join(base_dir, 'scene_%03d' % scene_num)
         print('PROCESSING ', scene_dir.upper())
 
@@ -283,8 +283,8 @@ def main():
 
         # Create random dot texture image and save to a file
         min_dot_diam = np.random.randint(5, 15)
-        max_dot_diam = np.random.randint(80, 100)
-        n_dots=np.random.randint(200, 400)
+        max_dot_diam = np.random.randint(30, 40)
+        n_dots=np.random.randint(10, 50)
         texture = dot_texture(min_diameter=min_dot_diam, max_diameter=max_dot_diam, n_dots=n_dots)
         texture.save(texture_file, format='png')
 
@@ -326,5 +326,5 @@ def main():
         delete_all(obj_type='MESH')
 
 if __name__=='__main__':
-    enable_gpus("CUDA")
+    # enable_gpus("CUDA")
     main()

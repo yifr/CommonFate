@@ -8,3 +8,4 @@ objects/*
 images/*
 Blender/*
 scenes/*
+wandb/*
