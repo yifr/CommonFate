@@ -9,3 +9,4 @@ images/*
 Blender/*
 scenes/*
 wandb/*
+slurm-*

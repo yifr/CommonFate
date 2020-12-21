@@ -51,7 +51,7 @@ class Scene(Dataset):
         filename = os.path.join(self.image_dir, filename)
         img_raw = Image.open(filename)
         img = transforms.ToTensor()(img_raw).to(self.device)
-        rotation = torch.tensor(self.rotations[idx]).to(self.device)
+        rotation = torch.tensor(self.rotations[idx], dtype=torch.float).to(self.device)
         translation = torch.tensor(self.translation[idx]).to(self.device)
         angle = torch.tensor(self.angle[idx]).to(self.device)
         axis = torch.tensor(self.axis[idx]).to(self.device)
