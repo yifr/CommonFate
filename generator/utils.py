@@ -1,10 +1,10 @@
 import os
 import bpy
 
-def set_mode(mode, type='MESH'):
+def set_mode(mode, obj_type='MESH'):
     """
     Sets the mode for a specific object type
-    
+
     Parameters
     -----------
         mode: :str: : Blender mode to set ('EDIT' | 'OBJECT' | etc...)
@@ -13,50 +13,42 @@ def set_mode(mode, type='MESH'):
     scene = bpy.context.scene
 
     for obj in scene.objects:
-        if obj.type == type:
+        if obj.type == obj_type:
             bpy.context.view_layer.objects.active = obj
             bpy.ops.object.mode_set(mode=mode)
 
-def delete_all(type):
+def delete_all(obj_type):
     """
     Delete specific type of object
-    
+
     Parameters
     -----------
         type: name of object type to delete (ie; 'MESH' | 'LIGHT' | 'CAMERA')
-    
-    Returns 
+
+    Returns
     ----------
         nothing, but deletes specified objects
     """
     for o in bpy.context.scene.objects:
-        if o.type == type:
+        if o.type == obj_type:
             o.select_set(True)
         else:
             o.select_set(False)
     set_mode('OBJECT')
     bpy.ops.object.delete()
 
-
-def set_light_source(type, location, rotation):
+def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
     """
-    Creates a single light source at a specific location / rotation
-    
-    Parameters
-    -----------
-        type: Light type ('POINT' | 'SUN' | 'SPOT' | 'AREA')
-        location: Vector location of light
-        rotation: Euler angle rotation of light
-    """    
-    type = type.upper()
-    delete_all(type='LIGHT') # Delete existing lights
-    light_data = bpy.data.lights.new(name='Light', type=type)
-    light_object = bpy.data.objects.new(name='Light', object_data=light_data)
-    bpy.context.collection.objects.link(light_object)
-    bpy.context.view_layer.objects.active = light_object
-    
-    light_object.location = location
-    light_object.rotation_euler = rotation
+    Adds a mesh with a given name, defined vertices and faces to a collection
+    """
+    if edges is None:
+        edges = []
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(mesh.name, mesh)
+    col = bpy.data.collections.get(col_name)
+    col.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    mesh.from_pydata(verts, edges, faces)
 
 def cube_project():
     set_mode('EDIT')
@@ -70,7 +62,7 @@ def load_obj(path):
     mesh = bpy.ops.import_scene.obj(filepath=path)
     return mesh
 
-def export_obj(obj, scene_dir, fname='mesh.obj'):
+def export_obj(obj, scene_dir, fname='textured.obj'):
     """
     Exports textured mesh to a file called textured.obj.
     Also exports material group used to texture

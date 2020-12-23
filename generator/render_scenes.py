@@ -1,68 +1,34 @@
 import os
 import bpy
-import argparse
 import numpy as np
-from PIL import Image, ImageDraw
 from pyquaternion import Quaternion
 
-def set_mode(mode, obj_type='MESH'):
+# Add the generator directory to the path for relative Blender imports
+import sys
+import pathlib
+
+generator_path = str(pathlib.Path(__file__).parent.absolute())
+sys.path.append(generator_path)
+
+import utils
+import superquadrics
+import BlenderArgparse
+from textures import dot_texture
+print(os.getcwd())
+
+def add_superquadric_mesh(epsilons=None, scaling=None, n_points=100, mesh_name='mesh'):
     """
-    Sets the mode for a specific object type
-
-    Parameters
-    -----------
-        mode: :str: : Blender mode to set ('EDIT' | 'OBJECT' | etc...)
-        type: :str: : Object type to apply setting to
+    Adds a superquadric specifed by epsilon, and scaling parameters to a scene collection
     """
-    scene = bpy.context.scene
+    if epsilons is None:
+        epsilons = np.random.uniform(0, 4, 3)
+    if scaling is None:
+        scaling = [1, 1, 1, 1]
 
-    for obj in scene.objects:
-        if obj.type == obj_type:
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode=mode)
+    x, y, z = superquadrics.superellipsoid(epsilons, scaling, n_points)
+    faces, verts = superquadrics.get_faces_and_verts(x, y, z)
+    utils.add_mesh(mesh_name, verts, faces)
 
-def delete_all(obj_type):
-    """
-    Delete specific type of object
-
-    Parameters
-    -----------
-        type: name of object type to delete (ie; 'MESH' | 'LIGHT' | 'CAMERA')
-
-    Returns
-    ----------
-        nothing, but deletes specified objects
-    """
-    for o in bpy.context.scene.objects:
-        if o.type == obj_type:
-            o.select_set(True)
-        else:
-            o.select_set(False)
-    set_mode('OBJECT')
-    bpy.ops.object.delete()
-
-def cube_project():
-    set_mode('EDIT')
-    bpy.ops.uv.cube_project(cube_size=1)
-
-def load_img(path):
-    img = bpy.data.images.load(filepath=path)
-    print(img)
-    return img
-
-def load_obj(path):
-    mesh = bpy.ops.import_scene.obj(filepath=path)
-    return mesh
-
-def export_obj(obj, scene_dir, fname='textured.obj'):
-    """
-    Exports textured mesh to a file called textured.obj.
-    Also exports material group used to texture
-    Assumes one active mesh at a time
-    """
-    set_mode('OBJECT')
-    output_file = os.path.join(scene_dir, fname)
-    bpy.ops.export_scene.obj(filepath=output_file, use_selection=True)
 
 def enable_gpus(device_type, use_cpus=False):
     """
@@ -98,19 +64,7 @@ def enable_gpus(device_type, use_cpus=False):
     scene.render.tile_x = 256
     scene.render.tile_y = 256
 
-    print('Using following GPUs: ', activated_gpus)
     return activated_gpus
-
-def dot_texture(width=1024, height=1024, min_diameter=10, max_diameter=20, n_dots=900):
-    img  = Image.new('RGB', (width, height), color = 'white')
-    draw = ImageDraw.Draw(img)
-
-    for _ in range(n_dots):
-        x, y = np.random.randint(0,width), np.random.randint(0,height)
-        diam = np.random.randint(min_diameter, max_diameter)
-        draw.ellipse([x,y,x+diam,y+diam], fill='black')
-
-    return img
 
 
 def set_light_source(light_type, location, rotation):
@@ -124,7 +78,7 @@ def set_light_source(light_type, location, rotation):
     rotation: Euler angle rotation of light
     """
     light_type = light_type.upper()
-    delete_all(obj_type='LIGHT') # Delete existing lights
+    utils.delete_all(obj_type='LIGHT') # Delete existing lights
     light_data = bpy.data.lights.new(name='Light', type=light_type)
     light_data.energy = 10
     light_object = bpy.data.objects.new(name='Light', object_data=light_data)
@@ -142,7 +96,7 @@ def wrap_texture(img):
     Params:
         img: :obj: opened blender image
     """
-    cube_project()
+    utils.cube_project()
 
     # Create new texture slot
     mat = bpy.data.materials.new(name="texture")
@@ -207,7 +161,7 @@ def rotate(obj, n_frames=100):
 
     return data
 
-def render(output_dir, add_background=False):
+def render(args, output_dir, add_background=False):
     """
     Renders the video to a given folder. Defaults to adding a white
     background. This can be changed to a textured background in the
@@ -224,13 +178,13 @@ def render(output_dir, add_background=False):
     """
     # Add img_ prefix to output file names
     if output_dir[:-4] != 'img_':
-        output_dir = os.path.join(output_dir, 'test_')
+        output_dir = os.path.join(output_dir, 'img_')
 
     scene = bpy.data.scenes['Scene']
 
     # Set transparent background for render
     bpy.context.scene.render.film_transparent = True
-    bpy.context.scene.view_settings.view_transform = 'Standard'
+    bpy.context.scene.view_settings.view_transform = 'Raw'
 
     # Add alpha over node for white background
     bpy.context.scene.use_nodes = True
@@ -246,55 +200,55 @@ def render(output_dir, add_background=False):
     node_tree.links.new(alpha_over.outputs['Image'], composite.inputs['Image'])
 
     # Set properties to increase speed of render time
-    scene.render.use_border = True
-    scene.render.use_crop_to_border = True
-    scene.render.resolution_x = 256
-    scene.render.resolution_y = 256
+    scene.render.resolution_x = args.render_size
+    scene.render.resolution_y = args.render_size
     scene.render.image_settings.color_mode = 'BW'
     scene.render.image_settings.compression = 0
-    scene.cycles.samples = 256
+    scene.cycles.samples = 128
 
     # Render video
     scene.render.filepath = output_dir
     bpy.ops.render.render(animation=True)
 
 
-def main():
+def main(args):
+    if not os.path.exists(args.root_dir):
+        os.mkdir(args.root_dir)
+        print('Created root directory: ', args.root_dir)
+
     # Delete default cube
-    set_mode('OBJECT')
-    delete_all(obj_type='MESH')
+    utils.set_mode('OBJECT')
+    utils.delete_all(obj_type='MESH')
 
     # Set lighting source emanating from camera
     camera_loc = bpy.data.objects['Camera'].location
     camera_rot = bpy.data.objects['Camera'].rotation_euler
     set_light_source('SUN', camera_loc, camera_rot)
 
-    base_dir = 'objects'
-    n_scenes = 47
-    for scene_num in range(n_scenes, n_scenes+1):
-        scene_dir = os.path.join(base_dir, 'scene_%03d' % scene_num)
+    for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
+        scene_dir = os.path.join(args.root_dir, 'scene_%03d' % scene_num)
         print('PROCESSING ', scene_dir.upper())
 
         # Set paths
         image_dir = os.path.join(scene_dir, 'images')
-        obj_file = os.path.join(scene_dir, 'textured.obj')
+        obj_file = os.path.join(scene_dir, 'mesh.obj')
         data_file = os.path.join(scene_dir, 'data.npy')
         texture_file = os.path.join(scene_dir, 'texture.png')
 
         # Create random dot texture image and save to a file
-        min_dot_diam = np.random.randint(5, 15)
-        max_dot_diam = np.random.randint(30, 40)
-        n_dots=np.random.randint(10, 50)
-        texture = dot_texture(min_diameter=min_dot_diam, max_diameter=max_dot_diam, n_dots=n_dots)
-        texture.save(texture_file, format='png')
+        texture = dot_texture(min_diameter=args.min_dot_diam,
+                              max_diameter=args.max_dot_diam,
+                              n_dots=args.n_dots,
+                              save_file=texture_file)
 
         # Load texture image and mesh
-        img = load_img(texture_file)
-        mesh = load_obj(obj_file)
+        img = utils.load_img(texture_file)
+        mesh = utils.load_obj(obj_file)
         mesh_name = bpy.context.selected_objects[0].name
 
-        # Wrap/edit texture
+        # Wrap/edit texture and save textured mesh
         wrap_texture(img)
+        utils.export_obj(mesh, scene_dir)
 
         # Set material properties
         mat = bpy.data.materials[-1]
@@ -320,11 +274,29 @@ def main():
 
         # Save rotation parameters and mesh, and render images
         np.save(data_file, data)
-        render(output_dir=image_dir)
-        export_obj(mesh, scene_dir)
+        render(args, output_dir=image_dir)
 
-        delete_all(obj_type='MESH')
+        utils.delete_all(obj_type='MESH')
 
 if __name__=='__main__':
-    # enable_gpus("CUDA")
-    main()
+    parser = BlenderArgparse.ArgParser()
+    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=500)
+    parser.add_argument('--root_dir', type=str, help='Output directory for data', default='scenes')
+    parser.add_argument('--render_size', type=int, help='size of .png file to render', default=1024)
+    parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=100)
+    parser.add_argument('--device', type=str, help='Either "cuda" or "cpu"', default='cuda')
+    parser.add_argument('--start_scene', type=int, help='Scene number to begin rendering from', default=0)
+
+    # Texture default settings:
+    min_dot_diam = np.random.randint(5, 15)
+    max_dot_diam = np.random.randint(30, 45)
+    n_dots= np.random.randint(100, 300)
+    parser.add_argument('--min_dot_diam', type=int, help='minimum diamater for dots on texture image', default=min_dot_diam)
+    parser.add_argument('--max_dot_diam', type=int, help='maximum diamater for dots on texture image', default=max_dot_diam)
+    parser.add_argument('--n_dots', type=int, help='Number of dots on texture image', default=n_dots)
+    parser.add_argument('--output_img_name', type=str, help='Name for output images', default='img')
+    parser.add_argument('--texture_only', action='store_true', help='Will output only textured mesh, and no rendering')
+
+    args = parser.parse_args()
+
+    main(args)

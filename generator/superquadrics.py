@@ -63,6 +63,38 @@ def save_obj_not_overlap(path_save, x, y, z):
         fout.write("f %d %d %d\n" % (count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
 
 
+def get_faces_and_verts(x, y, z):
+    """
+    This function returns faces adn vertices for super-ellpsoid w/o overlap: the rightmost vertices are not coincide with the leftmost points,
+    and only one vertex at the top and bottom
+    """
+    x = np.transpose(x, (1, 0))
+    y = np.transpose(y, (1, 0))
+    z = np.transpose(z, (1, 0))
+    hei, wid = x.shape[0], x.shape[1]
+    count = 0
+    faces = []
+    verts = []
+    for i in range(1, hei - 1):
+        for j in range(0, wid - 1):
+            verts.append((x[i, j], y[i, j], z[i, j]))
+            count += 1
+    for i in range(0, hei - 3):
+        for j in range(0, wid - 2):
+            faces.append((i * (wid - 1) + j + 1, i * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 1))
+    for i in range(0, hei - 3):
+        faces.append((i * (wid - 1) + wid - 2 + 1, i * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + wid - 2 + 1))
+    verts.append((x[0, 0], y[0, 0], z[0, 0]))
+    verts.append((x[-1, -1], y[-1, -1], z[-1, -1]))
+    for j in range(0, wid - 2):
+        faces.append((count+1, j + 2, j + 1))
+    faces.append((count+1, 1, wid - 2 + 1))
+    for j in range(0, wid - 2):
+        faces.append((count+2, (hei - 3) * (wid - 1) + j + 1, (hei - 3) * (wid - 1) + j + 2))
+    faces.append((count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
+
+    return faces, verts
+
 def sgn(x):
     y = np.ones(x.shape)
     y[x == 0] = 0
