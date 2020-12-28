@@ -81,6 +81,7 @@ def set_light_source(light_type, location, rotation):
     utils.delete_all(obj_type='LIGHT') # Delete existing lights
     light_data = bpy.data.lights.new(name='Light', type=light_type)
     light_data.energy = 10
+    light_data.specular_factor = 0
     light_object = bpy.data.objects.new(name='Light', object_data=light_data)
     bpy.context.collection.objects.link(light_object)
     bpy.context.view_layer.objects.active = light_object
@@ -101,13 +102,29 @@ def wrap_texture(img):
     # Create new texture slot
     mat = bpy.data.materials.new(name="texture")
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    nodes = mat.node_tree.nodes
+    nodeOut = nodes['Material Output']
+
+    # Delete BSDF node
+#    bsdf = mat.node_tree.nodes["Principled BSDF"]
+#    nodes.remove(bsdf)
+
+    # Add emission shader node
+    nodeEmission = nodes.new(type='ShaderNodeEmission')
+    nodeEmission.inputs['Strength'].default_value = 10
 
     # Add image to texture
-    texImage = mat.node_tree.nodes.new('ShaderNodeTexImage')
+    texImage = nodes.new('ShaderNodeTexImage')
     texImage.image = img
-    mat.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
 
+    # Link everything together
+    links = mat.node_tree.links
+    linkTexture = links.new(texImage.outputs['Color'], nodeEmission.inputs['Color'])
+    linkOut = links.new(nodeEmission.outputs['Emission'], nodeOut.inputs['Surface'])
+
+#    mat.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
+    # Add material to active object
+    obj = bpy.data.objects[-1]
     ob = bpy.context.view_layer.objects.active
 
     # Assign texture to object
@@ -216,41 +233,61 @@ def main(args):
         os.mkdir(args.root_dir)
         print('Created root directory: ', args.root_dir)
 
-    # Delete default cube
+    #################################
+    # Delete default cube and light
+    #################################
     utils.set_mode('OBJECT')
     utils.delete_all(obj_type='MESH')
+    utils.delete_all(obj_type='LIGHT')
 
-    # Set lighting source emanating from camera
+    # Set white ambient light
     camera_loc = bpy.data.objects['Camera'].location
     camera_rot = bpy.data.objects['Camera'].rotation_euler
     set_light_source('SUN', camera_loc, camera_rot)
+
+    ############################
+    # Set high ambient light
+    ############################
+    world_nodes = bpy.data.worlds['World'].node_tree.nodes
+    world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+    world_nodes['Background'].inputs['Strength'].default_value = 1.5
 
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, 'scene_%03d' % scene_num)
         print('PROCESSING ', scene_dir.upper())
 
+        ###################
         # Set paths
+        ###################
         image_dir = os.path.join(scene_dir, 'images')
         obj_file = os.path.join(scene_dir, 'mesh.obj')
         data_file = os.path.join(scene_dir, 'data.npy')
         texture_file = os.path.join(scene_dir, 'texture.png')
 
+        ####################################################
         # Create random dot texture image and save to a file
+        #####################################################
         texture = dot_texture(min_diameter=args.min_dot_diam,
                               max_diameter=args.max_dot_diam,
                               n_dots=args.n_dots,
                               save_file=texture_file)
 
+        #############################
         # Load texture image and mesh
+        #############################
         img = utils.load_img(texture_file)
         mesh = utils.load_obj(obj_file)
         mesh_name = bpy.context.selected_objects[0].name
 
-        # Wrap/edit texture and save textured mesh
+        ###########################################
+        # Wrap texture and save textured mesh
+        ############################################
         wrap_texture(img)
         utils.export_obj(mesh, scene_dir)
 
+        ######################################
         # Set material properties
+        #######################################
         mat = bpy.data.materials[-1]
         bsdf = mat.node_tree.nodes['Principled BSDF']
         bsdf.inputs['Specular'].default_value = 0
@@ -262,17 +299,23 @@ def main(args):
         bsdf.inputs['IOR'].default_value = 0
         mat.cycles.use_transparent_shadow = False
 
-        # Set light properties
+        ################################
+        # Set global light properties
+        ###############################
         scene = bpy.data.scenes[-1]
         scene.render.engine = 'CYCLES'
         light = bpy.data.lights[-1]
         light.cycles['cast_shadow'] = False
 
+        ######################
         # Animate rotation
+        ######################
         obj = bpy.data.objects[mesh_name]
         data = rotate(obj)
 
+        #######################################################
         # Save rotation parameters and mesh, and render images
+        #######################################################
         np.save(data_file, data)
         render(args, output_dir=image_dir)
 
