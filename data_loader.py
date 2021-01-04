@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import torch
 import torchvision
@@ -9,7 +10,7 @@ from torchvision import transforms, utils
 class Scene(Dataset):
     def __init__(self, root_dir, scene_number, device='cuda', transforms=None, n_frames=100, img_size=128):
         """
-        Encapsulates
+        Encapsulates a single scene
         """
         self.root_dir = root_dir
         self.scene_dir = os.path.join(root_dir, 'scene_%03d' % scene_number)
@@ -41,16 +42,13 @@ class Scene(Dataset):
         a given frame
         """
         frame_idx = idx + 1 # frame images start from 0001
-        if self.img_size == 128:
-            filename = 'img_128_%04d.png' % frame_idx
-        elif self.img_size == 64:
-            filename = 'img_128_%04d_sm.png' % frame_idx
-        else:
-            filename = 'img_%04d.png' % frame_idx
 
-        filename = os.path.join(self.image_dir, filename)
+        filename = os.path.join(self.image_dir, 'img_%04d.png' % frame_idx)
         img_raw = Image.open(filename)
-        img = transforms.ToTensor()(img_raw).to(self.device)
+
+        compose = transforms.Compose([transforms.ToTensor(),transforms.Resize((self.img_size,self.img_size))])
+        img = transforms(img_raw).to(self.device)
+
         rotation = torch.tensor(self.rotations[idx], dtype=torch.float).to(self.device)
         translation = torch.tensor(self.translation[idx]).to(self.device)
         angle = torch.tensor(self.angle[idx]).to(self.device)
@@ -79,8 +77,8 @@ class SceneLoader():
     There's also a numpy dict with entries for the quaternion
     rotation, angle, (position and translation - right now these are static)
     of the shape. Lastly, we have a small text file with the exponents
-    to recreate a superquadric, given the basic formula:
-        $$ |x/A|^e_1 + |y/B|^e_2 + |z/C|^e_3 = 1
+    to recreate a superquadric, given the formula:
+        $$ |x/A|^e_1 + |y/B|^e_2 + |z/C|^e_3 = 1 $$
     assuming A = B = C = 1
     """
 
@@ -114,10 +112,14 @@ class SceneLoader():
         self.train_size = train_size
         self.train_test_split(train_size)
 
-    def train_test_split(self, train_size=0.8):
+    def train_test_split(self, train_size=0.8, test_size=0.1, val_size=0.1):
+        if train_size + test_size + val_size != 1:
+            print('Total train/val/test split must equal one.')
+            sys.exit(1)
+
         n_train = int(train_size * self.n_scenes)
         self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
-        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs)
+        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs) # remaining indexes used for text
 
     def __len__(self):
         """

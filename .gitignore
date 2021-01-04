@@ -11,3 +11,4 @@ scenes/*
 scenes
 wandb/*
 slurm-*
+.vscode/

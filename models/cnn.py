@@ -7,7 +7,7 @@ class Loss:
     def __init__(self, break_symmetry=False):
         self.break_sym = break_symmetry
 
-    def compute_loss(self, pred, quat_gt):
+    def compute_loss(self, pred_6d, quat_gt):
         """
         Compute loss from predicted 6d rotation and ground truth quaternions
         converts both representations into rotation matrices
@@ -21,14 +21,13 @@ class Loss:
         if self.break_sym:
             quat_gt = torch.abs(quat_gt)
 
-        gt_rmat = self.rmat_from_quaternion(quat_gt)
-        pred_rmat = self.rmat_from_6d(pred)
+        gt_rmat = self.rotation_matrix_from_quaternion(quat_gt)
+        pred_rmat = self.rotation_matrix_from_6d(pred)
 
         mse = F.mse(gt_mat, pred_mat)
-        geodesic = self.geodesic_dist(gt_mat, pred_mat)
-        geodesic_mean = torch.mean(geodeisc)
+        geodesic = torch.mean(self.geodesic_dist(gt_mat, pred_mat))
 
-        return {'mse': mse, 'geodesic': geodesic_mean}
+        return {'mse': mse, 'geodesic': geodesic}
 
     def geodesic_dist(self, m1, m2):
         batch = m1.shape[0]
@@ -42,72 +41,50 @@ class Loss:
 
         return theta
 
-    def normalize_vector(self, v):
-        batch= v.shape[0]
-        v_m = torch.sqrt(v.pow(2).sum(1)) # batch
-        v_m = torch.max(v_m, torch.autograd.Variable(torch.FloatTensor([1e-8]).cuda()))
-        v_m = v_m.view(batch, 1).expand(batch, v.shape[1])
-        v = v/v_m
-        return v
-
-    def cross_product(self, u, v):
-        batch = u.shape[0]
-        i = u[:, 1] * v[:, 2] - u[:, 2] * v[:, 1]
-        j = u[:, 2] * v[:, 0] - u[:, 0] * v[:, 2]
-        k = u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
-
-        out = torch.cat((i.view(batch, 1), j.view(batch, 1), k.view(batch, 1)), 1) # batch * 3
-
-        return out
-
-    def rmat_from_6d(self, ortho6d):
+    def rotation_matrix_from_6d(self, ortho6d):
         """
-        Computes rotation matrix from 6d representation
+        Computes rotation matrix from 6d representation. 
+        Implements eq. (15) from: https://arxiv.org/pdf/1812.07035.pdf
         """
-        x_raw = ortho6d[:, 0:3] # batch * 3
-        y_raw = ortho6d[:, 3:6] # batch * 3
-
-        x = self.normalize_vector(x_raw) # batch *3
-        z = self.cross_product(x,y_raw) # batch * 3
-        z = self.normalize_vector(z) #batch * 3
-        y = self.cross_product(z, x) # batch * 3
+        x = F.normalize(ortho6d[:, :3], p=2, dim=1) # batch * 3
+        y_raw = ortho6d[:, 3:]
+        y = F.normalize(y_raw - torch.dot(x, y_raw) * x, p=2, dim=1) # batch * 3 
+        z = torch.cross(x, y, dim=1)
 
         x = x.view(-1, 3, 1)
         y = y.view(-1, 3, 1)
         z = z.view(-1, 3, 1)
-        matrix = torch.cat((x, y, z), 2) # batch * 3 * 3
+        m = torch.cat((x, y, z), 2) # batch * 3 * 3
 
-        return matrix
+        return m
 
-    def rmat_from_quaternion(self, quaternion):
-        batch=quaternion.shape[0]
+    def rotation_matrix_from_quaternion(self, q):
+        """
+        Convert rotations given as quaternions to rotation matrices. 
+        Source: https://www.weizmann.ac.il/sci-tea/benari/sites/sci-tea.benari/files/uploads/softwareAndLearningMaterials/quaternion-tutorial-2-0-1.pdf
+                https://github.com/moble/quaternion/blob/master/src/quaternion/__init__.py
+        Args:
+            quaternions: quaternions with real part first,
+                as tensor of shape (..., 4).
+        Returns:
+            Rotation matrices as tensor of shape (..., 3, 3).
+        """
+    n = F.normalize(q, p=2, dim=1)
+    m = torch.empty(q.shape + (3, 3))
 
+    m[..., 0, 0] = 1.0 - 2*(q[..., 2]**2 + q[..., 3]**2)/n
+    m[..., 0, 1] = 2*(q[..., 1]*q[..., 2] - q[..., 3]*q[..., 0])/n
+    m[..., 0, 2] = 2*(q[..., 1]*q[..., 3] + q[..., 2]*q[..., 0])/n
+    m[..., 1, 0] = 2*(q[..., 1]*q[..., 2] + q[..., 3]*q[..., 0])/n
+    m[..., 1, 1] = 1.0 - 2*(q[..., 1]**2 + q[..., 3]**2)/n
+    m[..., 1, 2] = 2*(q[..., 2]*q[..., 3] - q[..., 1]*q[..., 0])/n
+    m[..., 2, 0] = 2*(q[..., 1]*q[..., 3] - q[..., 2]*q[..., 0])/n
+    m[..., 2, 1] = 2*(q[..., 2]*q[..., 3] + q[..., 1]*q[..., 0])/n
+    m[..., 2, 2] = 1.0 - 2*(q[..., 1]**2 + q[..., 2]**2)/n
 
-        quat = normalize_vector(quaternion).contiguous()
+    return m
 
-        qw = quat[...,0].contiguous().view(batch, 1)
-        qx = quat[...,1].contiguous().view(batch, 1)
-        qy = quat[...,2].contiguous().view(batch, 1)
-        qz = quat[...,3].contiguous().view(batch, 1)
-
-        # Unit quaternion rotation matrices computatation
-        xx = qx*qx
-        yy = qy*qy
-        zz = qz*qz
-        xy = qx*qy
-        xz = qx*qz
-        yz = qy*qz
-        xw = qx*qw
-        yw = qy*qw
-        zw = qz*qw
-
-        row0 = torch.cat((1-2*yy-2*zz, 2*xy - 2*zw, 2*xz + 2*yw), 1) #batch*3
-        row1 = torch.cat((2*xy+ 2*zw,  1-2*xx-2*zz, 2*yz-2*xw  ), 1) #batch*3
-        row2 = torch.cat((2*xz-2*yw,   2*yz+2*xw,   1-2*xx-2*yy), 1) #batch*3
-
-        matrix = torch.cat((row0.view(batch, 1, 3), row1.view(batch,1,3), row2.view(batch,1,3)),1) #batch*3*3
-
-        return matrix
+    
 
 class SimpleCNN(nn.Module):
     """
