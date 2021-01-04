@@ -8,7 +8,7 @@ import superquadrics
 from textures import dot_texture
 
 logging.basicConfig(level=logging.INFO)
-root_dir = '/Users/yoni/Projects/CommonFate/scenes/'
+root_dir = '/home/yyf/CommonFate/scenes/'
 
 if not os.path.exists(root_dir):
     os.mkdir(root_dir)
@@ -29,6 +29,8 @@ for i in tqdm(range(n_scenes)):
         os.mkdir(scene_dir)
 
     epsilons = np.random.uniform(0, 5, 3)
+    epsilons[2] = epsilons[0]
+
     #logging.info('[SCENE: %s] Generating mesh with params: (e1=%.3f, e2=%.3f, e3=%.3f)...' %(scene_dir, epsilons[0], epsilons[1], epsilons[2]))
 
     x, y, z = superquadrics.superellipsoid(epsilons, a, n)

@@ -1,7 +1,14 @@
 import os
 import bpy
+import time
+import datetime
 import numpy as np
 from pyquaternion import Quaternion
+
+# Set up logger
+import logging
+FORMAT = '%(asctime)-10s %(message)s'
+logging.basicConfig(filename='render_logs', level=logging.INFO, format=FORMAT)
 
 # Add the generator directory to the path for relative Blender imports
 import sys
@@ -254,7 +261,7 @@ def main(args):
 
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, 'scene_%03d' % scene_num)
-        print('PROCESSING ', scene_dir.upper())
+        logging.info('Processing scene: {}...'.format(scene_dir))
 
         ###################
         # Set paths
@@ -321,9 +328,18 @@ def main(args):
 
         utils.delete_all(obj_type='MESH')
 
+        # Add a render timestamp
+        ts = time.time()
+        fts = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        with open(os.path.join(scene_dir, 'timestamp.txt'), 'w') as f:
+            f.write('Files Rendered at: {}\n'.format(fts))
+
+
+        logging.info('...Done')
+
 if __name__=='__main__':
     parser = BlenderArgparse.ArgParser()
-    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=500)
+    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=1000)
     parser.add_argument('--root_dir', type=str, help='Output directory for data', default='scenes')
     parser.add_argument('--render_size', type=int, help='size of .png file to render', default=1024)
     parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=100)
@@ -341,5 +357,7 @@ if __name__=='__main__':
     parser.add_argument('--texture_only', action='store_true', help='Will output only textured mesh, and no rendering')
 
     args = parser.parse_args()
+    if args.device == 'cuda':
+        enable_gpus('CUDA')
 
     main(args)

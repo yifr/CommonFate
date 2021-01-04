@@ -7,4 +7,4 @@
 #SBATCH -p normal
 #SBATCH --mem=1G
 
-./resize.sh scenes
+./resize.sh /om2/user/yyf/CommonFate/data/

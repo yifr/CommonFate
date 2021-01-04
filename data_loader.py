@@ -135,6 +135,7 @@ class SceneLoader():
                       transforms=self.transforms)
 
 
-        scene_loader = DataLoader(scene, batch_size=self.batch_size)
+        transform = T.Compose([T.Resize(256), T.CenterCrop(224), T.ToTensor()])
+        scene_loader = DataLoader(scene, batch_size=self.batch_size, transform=transform)
         data = iter(scene_loader).next()
         return data
