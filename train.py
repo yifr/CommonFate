@@ -101,9 +101,12 @@ def main():
 
     wargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
+    print('Initialized Data Loader')
     scene_loader = SceneLoader(root_dir=args.scene_dir, n_scenes=args.n_scenes, img_size=1024, device=device)
     #model = cnn.ResNet(Bottleneck, [2, 2, 2, 2], num_classes=4).to(device)
+    print('Initializing Model...')
     model = models.SimpleCNN()
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr,
                           momentum=args.momentum)
     wandb.watch(model)
