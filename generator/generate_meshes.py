@@ -14,7 +14,7 @@ if not os.path.exists(root_dir):
     os.mkdir(root_dir)
 
 scene_num = 0
-n_scenes = 1000
+n_scenes = 4000
 
 # Shape parameters
 n = 100           # Number points to generate per shape
@@ -22,6 +22,7 @@ a = [1, 1, 1, 1] # [x_scale, y_scale, z_scale, toroid_inner_radius]
 
 # Range of exponents:
 
+points = np.linspace(0, )
 for i in tqdm(range(n_scenes)):
     scene_dir = os.path.join(root_dir, 'scene_%03d'%scene_num)
     # logging.info('SCENE: %s' % scene_dir)

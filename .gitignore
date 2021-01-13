@@ -12,3 +12,4 @@ scenes
 wandb/*
 slurm-*
 .vscode/
+model.pt

@@ -5,10 +5,10 @@ import torch
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torchvision import transforms as T
 
 class Scene(Dataset):
-    def __init__(self, root_dir, scene_number, device='cuda', transforms=None, n_frames=100, img_size=128):
+    def __init__(self, root_dir, scene_number, device='cuda', transforms=None, n_frames=100, img_size=128, as_rgb=False):
         """
         Encapsulates a single scene
         """
@@ -18,12 +18,18 @@ class Scene(Dataset):
         self.shape_params = self.get_exponents()
         self.n_frames = n_frames
         self.img_size = img_size
+
         self.transforms = transforms
+        if transforms == None:
+            self.transforms = T.Compose([T.Resize(256), T.CenterCrop(224), T.ToTensor()])
+
         self.device = device
+        self.as_rgb = as_rgb # Whether to load images as 3 channel rgb images
 
         # Load rotation parameters
         scene_data = os.path.join(self.scene_dir, 'data.npy')
         data_dict = np.load(scene_data, allow_pickle=True).item()
+
         self.rotations = data_dict['rotation']
         self.translation = data_dict['translation']
         self.angle = data_dict['angle']
@@ -46,8 +52,12 @@ class Scene(Dataset):
         filename = os.path.join(self.image_dir, 'img_%04d.png' % frame_idx)
         img_raw = Image.open(filename)
 
-        compose = transforms.Compose([transforms.ToTensor(),transforms.Resize((self.img_size,self.img_size))])
-        img = transforms(img_raw).to(self.device)
+        # If we're using a pre-trained model, create 3 channels (images are stored as 1 channel Black and White)
+        if self.as_rgb:
+            img_raw = np.array(img_raw)
+            img_raw = np.repeat(img_raw[..., np.newaxis], 3, -1)
+
+        img = self.transforms(img_raw).to(self.device)
 
         rotation = torch.tensor(self.rotations[idx], dtype=torch.float).to(self.device)
         translation = torch.tensor(self.translation[idx]).to(self.device)
@@ -84,7 +94,7 @@ class SceneLoader():
 
     def __init__(self, root_dir, transforms=None, device='cuda',
                  n_scenes=0, n_frames=100, img_size=128,
-                 batch_size=100, train_size=0.8):
+                 batch_size=100, train_size=0.8, as_rgb=False):
         """
         Args:
             root_dir (string): root directory for the generated scenes
@@ -109,14 +119,11 @@ class SceneLoader():
         self.img_size = img_size
         self._train = True
 
+        self.as_rgb = as_rgb
         self.train_size = train_size
         self.train_test_split(train_size)
 
-    def train_test_split(self, train_size=0.8, test_size=0.1, val_size=0.1):
-        if train_size + test_size + val_size != 1:
-            print('Total train/val/test split must equal one.')
-            sys.exit(1)
-
+    def train_test_split(self, train_size=0.8, test_size=0.2):
         n_train = int(train_size * self.n_scenes)
         self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
         self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs) # remaining indexes used for text
@@ -134,10 +141,9 @@ class SceneLoader():
         """
         scene = Scene(self.root_dir, idx, device=self.device,
                       n_frames=self.n_frames, img_size=self.img_size,
-                      transforms=self.transforms)
+                      transforms=self.transforms, as_rgb=self.as_rgb)
 
 
-        transform = T.Compose([T.Resize(256), T.CenterCrop(224), T.ToTensor()])
-        scene_loader = DataLoader(scene, batch_size=self.batch_size, transform=transform)
+        scene_loader = DataLoader(scene, batch_size=self.batch_size)
         data = iter(scene_loader).next()
         return data

@@ -17,7 +17,7 @@ def dot_texture(width=1024, height=1024,
         n_dot: int: number of dots to create
         save_file: str: if provided, will save the image to given path
     """
-    img  = Image.new('RGB', (width, height), color = 'white')
+    img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
     draw = ImageDraw.Draw(img)
 
     for _ in range(n_dots):
