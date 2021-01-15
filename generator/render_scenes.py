@@ -46,7 +46,7 @@ class RenderEngine:
             output_dir = os.path.join(output_dir, 'img_')
 
         self.set_render_settings()
-        scene.render.filepath = output_dir
+        self.scene.render.filepath = output_dir
         bpy.ops.render.render(animation=True)
             
     def set_render_settings(self):
@@ -107,6 +107,8 @@ class BlenderScene(object):
         self.renderer = RenderEngine(self.scene, device, engine, render_size, samples)
         self.rotation_data = os.path.join(self.scene_dir, 'data.npy')
 
+        self.delete_all('MESH')
+        
     @property
     def objects(self):
         return self.scene.objects
@@ -115,30 +117,42 @@ class BlenderScene(object):
     def scene(self):
         return bpy.data.scenes['Scene']
 
+    def get_shape_params(self):
+        if self.shape_params:
+            return self.shape_params
+            
+        param_file = os.path.join(self.scene_dir, 'params.txt')
+        if not os.path.exists(param_file):
+            return None
+
+        param_data = open(param_file, 'r').read()
+        params = np.array([float(x.split(': ')[1]) for x in param_data.split('\n')])
+        return params
+
     def delete_all(self, obj_type):
         """
         Deletes all instances of a given object type:
         obj_type: "MESH" | "LIGHT" | "CAMERA" ...
         """
-        for obj in self.objects():
+        for obj in self.objects:
             if obj.type == obj_type:
                 obj.select_set(True)
             else:
                 obj.select_set(False)
-        self.set_mode('OBJECT', object_type)
+        self.set_mode('OBJECT', obj_type)
         bpy.ops.object.delete()
 
     def set_mode(self, mode, obj_type='MESH'):
-        for obj in self.objects():
+        for obj in self.objects:
             if obj.type == obj_type:
                 self.context.view_layer.objects.active = obj
                 bpy.ops.object.mode_set(mode=mode)
 
-    def generate_mesh(self, shape_params=None):
+    def _generate_mesh(self, shape_params=None):
         """
         Returns points for a superquadric given some shape parameters
         """
-        if not self.shape_params or shape_params:
+        if not self.get_shape_params() or shape_params:
             self.shape_params = np.random.randint(0, 4, 3)
             self.shape_params[2] = self.shape_params[0]
             
@@ -152,11 +166,11 @@ class BlenderScene(object):
 
         return x, y, z
 
-    def add_mesh(self):
+    def create_mesh(self):
         """
         Adds a mesh from shape parameters
         """
-        x, y, z = self.generate_mesh()
+        x, y, z = self._generate_mesh()
         faces, verts = superquadrics.get_faces_and_verts(x, y, z)
         edges = []
         
@@ -168,17 +182,18 @@ class BlenderScene(object):
         self.context.view_layer.objects.active = obj
         mesh.from_pydata(verts, edges, faces)
 
-        return mesh
+        return obj
         
     def load_mesh(self, save=False):
         mesh_file = os.path.join(self.scene_dir, 'mesh.obj')
         
         if not os.path.exists(mesh_file):
-            x, y, z = self.generate_mesh()
+            x, y, z = self._generate_mesh()
             superquadrics.save_obj_not_overlap(mesh_file, x, y, z)
 
         mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
-        return mesh    
+        obj = self.context.selected_objects[0]
+        return obj    
 
     def texture_mesh(self, obj=None):
         """
@@ -197,7 +212,7 @@ class BlenderScene(object):
                               n_dots=n_dots,
                               save_file=texture_file)
 
-        image = self.data.images.load(filepath=texture_path)
+        image = self.data.images.load(filepath=texture_file)
         bpy.ops.uv.cube_project(cube_size=1)
 
         # Create new texture slot
@@ -286,6 +301,8 @@ class BlenderScene(object):
         bpy.context.collection.objects.link(light_object)
         bpy.context.view_layer.objects.active = light_object
 
+        light_object.cycles['cast_shadow'] = False
+
         light_object.location = location
         light_object.rotation_euler = rotation
 
@@ -324,123 +341,72 @@ class BlenderScene(object):
         scene.frame_start = 1
         scene.frame_end = n_frames
 
-        if rotations == None:
+        if rotations is None:
             if os.path.exists(self.rotation_data):
                 data = np.load(self.rotation_data, allow_pickle=True).item()
             else:
                 data = self.generate_random_rotation(n_frames=100, save=True)
-            rotations = data['quaternion']
+            
+            if 'quaternion' in data.keys():
+                rotations = data['quaternion']
+            else:
+                rotations = data['rotation']
 
         # Set rotation parameters
         obj.rotation_mode = 'QUATERNION'
 
         # Add frame for rotation
-        for q in rotations:  
+        for frame, q in enumerate(rotations):  
             obj.rotation_quaternion = q
             obj.keyframe_insert('rotation_quaternion', frame=frame + 1)
 
+    def render(self, output_dir='images'):
+        img_path = os.path.join(self.scene_dir, output_dir)
+        self.renderer.render(img_path)
+
+    def create_default_scene(self):
+        self.set_mode('OBJECT')
+        self.delete_all(obj_type='MESH')
+        self.delete_all(obj_type='LIGHT')
+        
+        # Set direct and ambient light
+        camera_loc = bpy.data.objects['Camera'].location
+        camera_rot = bpy.data.objects['Camera'].rotation_euler
+        self.set_light_source('SUN', camera_loc, camera_rot)
+
+        world_nodes = self.data.worlds['World'].node_tree.nodes
+        world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+        world_nodes['Background'].inputs['Strength'].default_value = 1.5
+
+        obj = self.load_mesh()
+        self.texture_mesh(obj)
+
+        data = self.generate_random_rotation()
+        self.rotate(obj, data['quaternion'])
+        
+        self.set_background_color(color=(255,255,255,1))
+        self.render()
+
+        # Clean up scene
+        self.delete_all(obj_type='MESH')
 
 def main(args):
     if not os.path.exists(args.root_dir):
         os.mkdir(args.root_dir)
         print('Created root directory: ', args.root_dir)
 
-    #################################
-    # Delete default cube and light
-    #################################
-    utils.set_mode('OBJECT')
-    utils.delete_all(obj_type='MESH')
-    utils.delete_all(obj_type='LIGHT')
-
-    # Set white ambient light
-    camera_loc = bpy.data.objects['Camera'].location
-    camera_rot = bpy.data.objects['Camera'].rotation_euler
-    scene.set_light_source('SUN', camera_loc, camera_rot)
-
-    ############################
-    # Set high ambient light
-    ############################
-    world_nodes = bpy.data.worlds['World'].node_tree.nodes
-    world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
-    world_nodes['Background'].inputs['Strength'].default_value = 1.5
-
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, 'scene_%03d' % scene_num)
         logging.info('Processing scene: {}...'.format(scene_dir))
-
-        ###################
-        # Set paths
-        ###################
-        image_dir = os.path.join(scene_dir, 'images')
-        obj_file = os.path.join(scene_dir, 'mesh.obj')
-        data_file = os.path.join(scene_dir, 'data.npy')
-        texture_file = os.path.join(scene_dir, 'texture.png')
-
-        ####################################################
-        # Create random dot texture image and save to a file
-        #####################################################
-        texture = dot_texture(min_diameter=args.min_dot_diam,
-                              max_diameter=args.max_dot_diam,
-                              n_dots=args.n_dots,
-                              save_file=texture_file)
-
-        #############################
-        # Load texture image and mesh
-        #############################
-        img = utils.load_img(texture_file)
-        mesh = utils.load_obj(obj_file)
-        mesh_name = bpy.context.selected_objects[0].name
-
-        ###########################################
-        # Wrap texture and save textured mesh
-        ############################################
-        wrap_texture(img)
-        utils.export_obj(mesh, scene_dir)
-
-        ######################################
-        # Set material properties
-        #######################################
-        mat = bpy.data.materials[-1]
-        bsdf = mat.node_tree.nodes['Principled BSDF']
-        bsdf.inputs['Specular'].default_value = 0
-        bsdf.inputs['Specular Tint'].default_value = 0
-        bsdf.inputs['Roughness'].default_value = 0
-        bsdf.inputs['Sheen Tint'].default_value = 0
-        bsdf.inputs['Clearcoat'].default_value = 0
-        bsdf.inputs['Subsurface Radius'].default_value = [0, 0, 0]
-        bsdf.inputs['IOR'].default_value = 0
-        mat.cycles.use_transparent_shadow = False
-
-        ################################
-        # Set global light properties
-        ###############################
-        scene = bpy.data.scenes[-1]
-        scene.render.engine = 'CYCLES'
-        light = bpy.data.lights[-1]
-        light.cycles['cast_shadow'] = False
-
-        ######################
-        # Animate rotation
-        ######################
-        obj = bpy.data.objects[mesh_name]
-        data = rotate(obj)
-
-        #######################################################
-        # Save rotation parameters and mesh, and render images
-        #######################################################
-        np.save(data_file, data)
-        render(args, output_dir=image_dir)
-
-        utils.delete_all(obj_type='MESH')
+        
+        scene = BlenderScene(scene_dir)
+        scene.create_default_scene()
 
         # Add a render timestamp
         ts = time.time()
         fts = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         with open(os.path.join(scene_dir, 'timestamp.txt'), 'w') as f:
             f.write('Files Rendered at: {}\n'.format(fts))
-
-
-        logging.info('...Done')
 
 if __name__=='__main__':
     parser = BlenderArgparse.ArgParser()
@@ -462,7 +428,7 @@ if __name__=='__main__':
     parser.add_argument('--texture_only', action='store_true', help='Will output only textured mesh, and no rendering')
 
     args = parser.parse_args()
-    if args.device == 'cuda':
-        enable_gpus('CUDA')
+    # if args.device == 'cuda':
+    #     enable_gpus('CUDA')
 
     main(args)

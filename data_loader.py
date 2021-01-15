@@ -102,8 +102,7 @@ class SceneLoader():
             n_scenes (int, optional): Total number of scenes in dataset (will be counted automatically if 0)
         """
         if not os.path.exists(root_dir):
-            print('Data directory {} does not exist!'.format(root_dir))
-            raise IOError
+            raise ValueError(f'Data directory: {root_dir} does not exist!')
 
         self.root_dir = root_dir
         self.transforms = transforms
