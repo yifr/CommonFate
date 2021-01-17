@@ -19,9 +19,9 @@ class Scene(Dataset):
         self.n_frames = n_frames
         self.img_size = img_size
 
-        self.transforms = transforms
         if transforms == None:
-            self.transforms = T.Compose([T.Resize(256), T.CenterCrop(224), T.ToTensor()])
+            transforms = T.Compose([T.Resize(256), T.ToTensor()])
+        self.transforms = transforms
 
         self.device = device
         self.as_rgb = as_rgb # Whether to load images as 3 channel rgb images

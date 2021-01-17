@@ -1,20 +1,20 @@
-from models.cnn import Loss
+from loss import PoseLoss
 import numpy as np
 import torch
 from pyquaternion import Quaternion
 from scipy.spatial.transform import Rotation
 
-ls = Loss(break_symmetry=True)
+ls = PoseLoss(break_symmetry=True)
 ortho6d = torch.rand(100, 6)
 data = np.load('scenes/scene_000/data.npy', allow_pickle=True).item()
 rmat_gt = np.zeros(shape=(100, 3,3))
-quat_gt = data['rotation']
+quat_gt = data['quaternion']
 
-print(quat_gt)
+print(data['rotation'][0].shape == (3,3))
 rmat_gt = torch.from_numpy(rmat_gt)
 quat_gt = torch.from_numpy(quat_gt)
 
-loss = ls.compute_loss(ortho6d, quat_gt)
+#loss = ls.compute_loss(ortho6d, quat_gt)
 
 def quaternion_to_matrix(quaternions):
     """

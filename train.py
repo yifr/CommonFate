@@ -55,14 +55,14 @@ def test_shapenet(args, model, device, scene_loader):
 
     test_loss_mse /= len(scene_loader.test_idxs) 
 
-    print('\nTest set: Average MSE: {:.4f}\n'.format(test_loss_mse, test_loss_geodesic))
+    print(f'\nTest set: Average MSE: {test_loss_mse:.4f}\n')
 
     wandb.log({"Test MSE": test_loss_mse})
 
     torch.save(model.state_dict(), args.model_save_path)
 
 
-def train(args, model, device, scene_loader, optimizer, epoch):
+def train_posenet(args, model, device, scene_loader, optimizer, epoch):
     model.train()
     running_mse = 0
     running_geodesic = 0
@@ -78,7 +78,11 @@ def train(args, model, device, scene_loader, optimizer, epoch):
             plt.matshow(img, cmap='gray')
             plt.savefig('example_frame.png')
 
-        target = data['rotation'].to(device)
+        target_key = 'rotation'
+        if data['rotation'][0].shape == (3,3):
+            target_key = 'quaternion'
+
+        target = data[target_key].to(device)
         optimizer.zero_grad()
         pred = model(frames)
 
@@ -104,7 +108,7 @@ def train(args, model, device, scene_loader, optimizer, epoch):
 
     wandb.log({"Train MSE": running_mse, "Train Geodesic": running_geodesic, "Chance MSE (train)": running_chance})
 
-def test(args, model, device, scene_loader):
+def test_posenet(args, model, device, scene_loader):
     model.eval()
     test_loss_mse = 0
     test_loss_geodesic = 0
@@ -114,7 +118,12 @@ def test(args, model, device, scene_loader):
         for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
             data = scene_loader.get_scene(scene_idx)
             frames = data['frame'].to(device)
-            target = data['rotation'].to(device)
+            
+            target_key = 'rotation'
+            if data['rotation'][0].shape == (3,3):
+                target_key = 'quaternion'
+
+            target = data[target_key].to(device)
 
             output = model(frames)
             # sum up batch loss
@@ -172,28 +181,22 @@ def main():
 
     wargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    model = None
-    if args.pred_type == 'shape':
-        model = cnn.SimpleCNN(out_size=2).to(device) #cnn.ResNet().to(device)
-    else:
-        model = cnn.SimpleCNN(out_size=6).to(device) #cnn.ResNet().to(device)
-
+    out_size = 2 if args.pred_type == 'shape' else 6
+    model = cnn.SimpleCNN(out_size=out_size).to(device) #cnn.ResNet().to(device)
     scene_loader = SceneLoader(root_dir=args.scene_dir, n_scenes=args.n_scenes, img_size=256, device=device,
                                as_rgb=False, transforms=model.get_transforms())
-    #model = cnn.ResNet(Bottleneck, [2, 2, 2, 2], num_classes=4).to(device)
-    # model = cnn.SimpleCNN().to(device)
-
-    print('Initialized model and data loader, beginning training...')
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     wandb.watch(model)
+    
+    print('Initialized model and data loader, beginning training...')
 
     for epoch in range(1, args.epochs + 1):
         if args.pred_type == 'shape':
             train_shapenet(args, model, device, scene_loader, optimizer, epoch)
             test_shapenet(args, model, device, scene_loader)
         else:
-            train(args, model, device, scene_loader, optimizer, epoch)
-            test(args, model, device, scene_loader)
+            train_posenet(args, model, device, scene_loader, optimizer, epoch)
+            test_posenet(args, model, device, scene_loader)
 
 
 if __name__ == '__main__':

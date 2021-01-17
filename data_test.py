@@ -6,12 +6,9 @@ import sys
 import torchvision.models as models
 
 cwd = os.getcwd()
-dl = SceneLoader(root_dir=cwd + '/scenes', device='cpu')
+dl = SceneLoader(root_dir=cwd + '/scenes', device='cpu', transforms=None)
 s0 = dl.get_scene(0)
 
-block = models.resnet.Bottleneck
-model = cnn.ResNet(block, [3, 3, 3, 3], 4)
-
-out = model(s0['frame'])
-
-print(out.shape)
+for i in range(len(dl.train_idxs)):
+    data = dl.get_scene(i)
+    print(data['rotation'].shape)

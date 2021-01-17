@@ -1,6 +1,7 @@
 .ipynb_checkpoints
-__pycache__/
 *.pyc
+__pycache__/
+*.py[cod]
 .DS_Store
 venv/*
 objects/*
@@ -12,4 +13,4 @@ scenes
 wandb/*
 slurm-*
 .vscode/
-model.pt
+*.pt
