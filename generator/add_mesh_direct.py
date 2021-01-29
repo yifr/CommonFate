@@ -3,11 +3,11 @@ sys.path.append('/Users/yoni/Projects/CommonFate/generator')
 import bpy
 import numpy as np
 import superquadrics
-from render_scenes import delete_all
+# from render_scenes import delete_all
 
-delete_all('MESH')
+# delete_all('MESH')
 
-x, y, z = superquadrics.superellipsoid(np.random.uniform(0, 4, 3), [1, 1, 1, 1], 100)
+x, y, z = superquadrics.superellipsoid([0.2232, 0.3323, 0.2232], [1, 1, 1, 1], 100)
 faces, verts = superquadrics.get_faces_and_verts(x, y, z)
 
 def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
