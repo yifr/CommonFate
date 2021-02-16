@@ -75,11 +75,15 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
     # If we're visualizing shape predictions, create new mesh
     obj = None
     if 'shape_params' in pred_types:
+<<<<<<< HEAD
         shape_pred = list(np.mean(predictions['shape_params'].detach().numpy(), axis=0))
         shape_pred.append(shape_pred[0])
         print('Predicted shape: ', shape_pred)
         obj = scene.create_mesh(shape_params=shape_pred)
         print('Creating new object')
+=======
+        obj = scene.create_mesh(shape_params=predictions['shape'])
+>>>>>>> 2a0660566f8a1327bd2733b5891e00d68e9ea2b7
     else:
         print('Loading mesh')
         obj = scene.load_mesh()
@@ -231,6 +235,7 @@ def main():
 
         model_path = os.path.join(os.getcwd(), 'saved_models/shapenet.pt')
         model = torch.load(model_path, map_location=torch.device('cpu'))
+
 
         #rotation_model = cnn.SimpleCNN()
         render_from_predictions(models={'shape_params': rotation_model}, scene_num=scene_num)
