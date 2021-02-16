@@ -90,8 +90,11 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
     if 'rotation' in pred_types:
         # Convert predicted 6d rotation to quaternion
         quaternions = ortho6d_to_quaternion(predictions['rotation'])
-        scene.rotate(obj, quaternions)
+    else:
+        data = np.load(os.path.join(scene_dir, 'data.npy'), allow_pickle=True).item()
+        quaternions = data['rotation']
 
+    scene.rotate(obj, quaternions)
     prediction_dir = os.path.join(scene_dir, 'predictions')
     if not os.path.exists(prediction_dir):
         os.mkdir(prediction_dir)
@@ -222,7 +225,7 @@ def stitch_prediction_video(scene_num, n_frames=100):
     print('Done.')
 
 def main():
-    viz_types = []#['predictions'] #['ground_truth']
+    viz_types = [] #['predictions'] #['ground_truth']
     scene_num = 25
 
     if 'predictions' in viz_types:

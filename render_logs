@@ -38,3 +38,5 @@ convert: unexpected end-of-file `-': No such file or directory @ error/rgb.c/Rea
 2021-02-16 14:25:20,186 Animation.save using <class 'matplotlib.animation.PillowWriter'>
 2021-02-16 14:27:28,591 Animation.save using <class 'matplotlib.animation.PillowWriter'>
 2021-02-16 14:40:42,164 Animation.save using <class 'matplotlib.animation.PillowWriter'>
+2021-02-16 15:09:45,443 Animation.save using <class 'matplotlib.animation.PillowWriter'>
+2021-02-16 15:10:48,774 Animation.save using <class 'matplotlib.animation.PillowWriter'>
