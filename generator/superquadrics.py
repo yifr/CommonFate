@@ -4,7 +4,7 @@ Ref1: https://cse.buffalo.edu/~jryde/cse673/files/superquadrics.pdf
 Ref2: https://en.wikipedia.org/wiki/Superquadrics
 Author: Huayi Zeng
 """
-
+import os
 import numpy as np
 
 def save_pts(path_save, x, y, z):
@@ -43,6 +43,7 @@ def save_obj_not_overlap(path_save, x, y, z):
     z = np.transpose(z, (1, 0))
     hei, wid = x.shape[0], x.shape[1]
     count = 0
+    print(x.shape, x)
     with open(path_save, "w+") as fout:
         for i in range(1, hei - 1):
             for j in range(0, wid - 1):
@@ -63,7 +64,7 @@ def save_obj_not_overlap(path_save, x, y, z):
         fout.write("f %d %d %d\n" % (count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
 
 
-def get_faces_and_verts(x, y, z):
+def get_faces_and_verts(x, y, z, threshold=-2):
     """
     This function returns faces adn vertices for super-ellpsoid w/o overlap: the rightmost vertices are not coincide with the leftmost points,
     and only one vertex at the top and bottom
@@ -75,24 +76,27 @@ def get_faces_and_verts(x, y, z):
     count = 0
     faces = []
     verts = []
-    for i in range(1, hei - 1):
-        for j in range(0, wid - 1):
-            verts.append((x[i, j], y[i, j], z[i, j]))
-            count += 1
-    for i in range(0, hei - 3):
-        for j in range(0, wid - 2):
-            faces.append((i * (wid - 1) + j + 1, i * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 1))
-    for i in range(0, hei - 3):
-        faces.append((i * (wid - 1) + wid - 2 + 1, i * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + wid - 2 + 1))
-    verts.append((x[0, 0], y[0, 0], z[0, 0]))
-    verts.append((x[-1, -1], y[-1, -1], z[-1, -1]))
-    for j in range(0, wid - 2):
-        faces.append((count+1, j + 2, j + 1))
-    faces.append((count+1, 1, wid - 2 + 1))
-    for j in range(0, wid - 2):
-        faces.append((count+2, (hei - 3) * (wid - 1) + j + 1, (hei - 3) * (wid - 1) + j + 2))
-    faces.append((count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
+    for i in range(hei):
+        for j in range(wid):
+            if threshold > 0:
+                if np.abs(x[i, j]) > threshold or np.abs(y[i, j]) > threshold or np.abs(z[i, j]) > threshold:
+                    continue
+                verts.append((x[i, j], y[i, j], z[i, j]))
+            else:
+                verts.append((x[i, j], y[i, j], z[i, j]))
+    # Write face: we could not write face when we filter out vertices by threshold
+    if threshold < 0:
+        for i in range(hei - 1):
+            for j in range(wid - 1):
+                faces.append(((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1))
+                faces.append(((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1))
 
+    current_path = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    try:
+        faces = list(np.load(os.path.join(current_path, 'faces.npy'), allow_pickle=True))
+    except:
+        print(f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
+              To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.')
     return faces, verts
 
 def sgn(x):

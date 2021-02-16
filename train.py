@@ -21,7 +21,7 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
         optimizer.zero_grad()
         pred = model(frames)
         shape_pred = torch.mean(pred, dim=0)
-        
+
         loss = F.mse_loss(shape_pred, target)
         loss.backward()
         optimizer.step()
@@ -34,7 +34,7 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
             percent_complete = 100 * batch_idx / len(scene_loader.train_idxs)
 
             print(f'Train Epoch: {epoch} [{frames_completed}/{total_frames} frames ({percent_complete:.0f}%)]\tMSE: {running_mse / (batch_idx + 1):.6f}')
-        
+
     running_mse /=  len(scene_loader.train_idxs)
     wandb.log({"Train MSE": running_mse})
 
@@ -53,7 +53,7 @@ def test_shapenet(args, model, device, scene_loader):
             loss = F.mse_loss(pred_shape, target)
             test_loss_mse += loss
 
-    test_loss_mse /= len(scene_loader.test_idxs) 
+    test_loss_mse /= len(scene_loader.test_idxs)
 
     print(f'\nTest set: Average MSE: {test_loss_mse:.4f}\n')
 
@@ -118,7 +118,7 @@ def test_posenet(args, model, device, scene_loader):
         for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
             data = scene_loader.get_scene(scene_idx)
             frames = data['frame'].to(device)
-            
+
             target_key = 'rotation'
             if data['rotation'][0].shape == (3,3):
                 target_key = 'quaternion'
@@ -132,8 +132,8 @@ def test_posenet(args, model, device, scene_loader):
             test_loss_mse += losses['mse']
             test_loss_geodesic += losses['geodesic']
 
-    test_loss_mse /= len(scene_loader.test_idxs) 
-    test_loss_geodesic /= len(scene_loader.test_idxs) 
+    test_loss_mse /= len(scene_loader.test_idxs)
+    test_loss_geodesic /= len(scene_loader.test_idxs)
 
     print('\nTest set: Average MSE: {:.4f}, Geodesic: {:.4f}\n'.format(test_loss_mse, test_loss_geodesic))
 
@@ -187,7 +187,7 @@ def main():
                                as_rgb=False, transforms=model.get_transforms())
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     wandb.watch(model)
-    
+
     print('Initialized model and data loader, beginning training...')
 
     for epoch in range(1, args.epochs + 1):

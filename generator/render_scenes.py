@@ -37,10 +37,10 @@ class RenderEngine:
         if self.device == 'CUDA':
             self.activated_gpus = self.enable_gpus(scene)
             print(f'Using following GPUs: {self.activated_gpus}')
-    
+
     def render(self, output_dir):
         """
-        Renders the video to a given folder. 
+        Renders the video to a given folder.
         """
         if output_dir[:-4] != 'img_':
             output_dir = os.path.join(output_dir, 'img_')
@@ -48,7 +48,7 @@ class RenderEngine:
         self.set_render_settings()
         self.scene.render.filepath = output_dir
         bpy.ops.render.render(animation=True)
-            
+
     def set_render_settings(self):
         # Set properties to increase speed of render time
         scene = self.scene
@@ -57,7 +57,7 @@ class RenderEngine:
         scene.render.image_settings.color_mode = 'BW'
         scene.render.image_settings.compression = 0
         scene.cycles.samples = self.samples
-    
+
     def enable_gpus(self, scene, device_type='CUDA', use_cpus=False):
         """
         Sets device as GPU and adjusts rendering tile size accordingly
@@ -93,9 +93,9 @@ class RenderEngine:
         return activated_gpus
 
 class BlenderScene(object):
-    def __init__(self, scene_dir, 
-                        shape_params=None, 
-                        device='CUDA', 
+    def __init__(self, scene_dir,
+                        shape_params=None,
+                        device='CUDA',
                         engine='CYCLES',
                         render_size=512,
                         samples=256
@@ -108,7 +108,7 @@ class BlenderScene(object):
         self.rotation_data = os.path.join(self.scene_dir, 'data.npy')
 
         self.delete_all('MESH')
-        
+
     @property
     def objects(self):
         return self.scene.objects
@@ -120,7 +120,7 @@ class BlenderScene(object):
     def get_shape_params(self):
         if self.shape_params:
             return self.shape_params
-            
+
         param_file = os.path.join(self.scene_dir, 'params.txt')
         if not os.path.exists(param_file):
             return None
@@ -155,7 +155,7 @@ class BlenderScene(object):
         if not self.get_shape_params() or shape_params:
             self.shape_params = np.random.randint(0, 4, 3)
             self.shape_params[2] = self.shape_params[0]
-            
+
             # Save parameters
             self.shape_param_file = os.path.join(self.scene_dir, 'params.txt')
             with open(self.shape_param_file, 'w') as f:
@@ -166,16 +166,19 @@ class BlenderScene(object):
 
         return x, y, z
 
-    def create_mesh(self):
+    def create_mesh(self, shape_params=None):
         """
         Adds a mesh from shape parameters
         """
+        if shape_params:
+            self.shape_params = list(shape_params)
+
         x, y, z = self._generate_mesh()
         faces, verts = superquadrics.get_faces_and_verts(x, y, z)
         edges = []
-        
+
         mesh = self.data.meshes.new('mesh')
-        obj = self.objects().new(mesh.name, mesh)
+        obj = self.data.objects.new(mesh.name, mesh)
         col = self.data.collections.get('Collection')
         col.objects.link(obj)
 
@@ -183,17 +186,17 @@ class BlenderScene(object):
         mesh.from_pydata(verts, edges, faces)
 
         return obj
-        
+
     def load_mesh(self, save=False):
         mesh_file = os.path.join(self.scene_dir, 'mesh.obj')
-        
+
         if not os.path.exists(mesh_file):
             x, y, z = self._generate_mesh()
             superquadrics.save_obj_not_overlap(mesh_file, x, y, z)
 
         mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
         obj = self.context.selected_objects[0]
-        return obj    
+        return obj
 
     def texture_mesh(self, obj=None):
         """
@@ -201,7 +204,7 @@ class BlenderScene(object):
         """
         self.set_mode('EDIT')
         texture_file = os.path.join(self.scene_dir, 'texture.png')
-        
+
         # Export new random texture if it doesn't exist
         if not os.path.exists(texture_file):
             min_dot_diam = np.random.randint(10, 15)
@@ -248,7 +251,7 @@ class BlenderScene(object):
         if obj == None:
             # Add material to active object
             obj = self.context.view_layer.objects.active
-        
+
         # Assign texture to object
         if obj.data.materials:
             obj.data.materials[0] = mat
@@ -258,7 +261,7 @@ class BlenderScene(object):
 
     def set_background_color(self, color=(255,255,255,1)):
         """
-        color should be a tuple (R,G,B,alpha) where alpha controls 
+        color should be a tuple (R,G,B,alpha) where alpha controls
         the transparency. Default color is white
         """
         # Set transparent background for render
@@ -270,8 +273,8 @@ class BlenderScene(object):
         scene.use_nodes = True
         node_tree = scene.node_tree
         alpha_over = node_tree.nodes.new('CompositorNodeAlphaOver')
-        
-        alpha_over.inputs[1].default_value = color        
+
+        alpha_over.inputs[1].default_value = color
         alpha_over.use_premultiply = True
         alpha_over.premul = 1
 
@@ -313,10 +316,10 @@ class BlenderScene(object):
                 'axis': np.zeros(shape=[n_frames, 3]),
                 'translation': np.zeros(shape=[n_frames, 4, 4]),
                 }
-        
+
         rotation_axis = np.random.uniform(-1, 1, 3)
         degrees = np.linspace(0, 360, n_frames)
-       
+
         for frame, degree in enumerate(degrees):
             q = Quaternion(axis=rotation_axis, degrees=degree)
 
@@ -333,7 +336,7 @@ class BlenderScene(object):
 
     def rotate(self, obj, rotations, n_frames=100):
         """
-        Takes a mesh and animates a rotation. Generates rotation data 
+        Takes a mesh and animates a rotation. Generates rotation data
         if no rotation parameters are passed
         """
         # Set scene parameters
@@ -346,7 +349,7 @@ class BlenderScene(object):
                 data = np.load(self.rotation_data, allow_pickle=True).item()
             else:
                 data = self.generate_random_rotation(n_frames=100, save=True)
-            
+
             if 'quaternion' in data.keys():
                 rotations = data['quaternion']
             else:
@@ -356,7 +359,7 @@ class BlenderScene(object):
         obj.rotation_mode = 'QUATERNION'
 
         # Add frame for rotation
-        for frame, q in enumerate(rotations):  
+        for frame, q in enumerate(rotations):
             obj.rotation_quaternion = q
             obj.keyframe_insert('rotation_quaternion', frame=frame + 1)
 
@@ -368,7 +371,7 @@ class BlenderScene(object):
         self.set_mode('OBJECT')
         self.delete_all(obj_type='MESH')
         self.delete_all(obj_type='LIGHT')
-        
+
         # Set direct and ambient light
         camera_loc = bpy.data.objects['Camera'].location
         camera_rot = bpy.data.objects['Camera'].rotation_euler
@@ -383,7 +386,7 @@ class BlenderScene(object):
 
         data = self.generate_random_rotation()
         self.rotate(obj, data['quaternion'])
-        
+
         self.set_background_color(color=(255,255,255,1))
         self.render()
 
@@ -398,7 +401,7 @@ def main(args):
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, 'scene_%03d' % scene_num)
         logging.info('Processing scene: {}...'.format(scene_dir))
-        
+
         scene = BlenderScene(scene_dir)
         scene.create_default_scene()
 
