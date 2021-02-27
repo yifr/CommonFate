@@ -14,3 +14,4 @@ wandb/*
 slurm-*
 .vscode/
 *.pt
+media/*
