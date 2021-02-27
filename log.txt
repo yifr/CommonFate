@@ -1,0 +1,195 @@
+
+
+times in msec
+ clock   self+sourced   self:  sourced script
+ clock   elapsed:              other lines
+
+000.024  000.024: --- VIM STARTING ---
+000.305  000.281: Allocated generic buffers
+000.511  000.206: locale set
+000.523  000.012: window checked
+024.502  023.979: inits 1
+053.330  028.828: parsing arguments
+053.340  000.010: expanding arguments
+053.411  000.071: shell init
+054.745  001.334: Termcap init
+054.826  000.081: inits 2
+055.153  000.327: init highlight
+103.276  000.580  000.580: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+103.655  013.692  013.112: sourcing /usr/share/vim/vim74/syntax/synload.vim
+178.930  000.292  000.292: sourcing /usr/share/vim/vimfiles/ftdetect/clustershell.vim
+187.270  000.264  000.264: sourcing /usr/share/vim/vimfiles/ftdetect/stp.vim
+187.571  073.666  073.110: sourcing /usr/share/vim/vim74/filetype.vim
+187.668  111.950  024.592: sourcing /usr/share/vim/vim74/syntax/syntax.vim
+199.333  000.031  000.031: sourcing /usr/share/vim/vim74/filetype.vim
+209.952  000.096  000.096: sourcing /usr/share/vim/vim74/ftplugin.vim
+210.050  142.488  030.411: sourcing /etc/vimrc
+304.254  000.072  000.072: sourcing /usr/share/vim/vim74/filetype.vim
+310.517  000.031  000.031: sourcing /usr/share/vim/vim74/ftplugin.vim
+319.243  000.035  000.035: sourcing /usr/share/vim/vim74/filetype.vim
+341.665  000.255  000.255: sourcing /usr/share/vim/vim74/indent.vim
+370.688  009.893  009.893: sourcing /usr/share/vim/vim74/delmenu.vim
+405.484  000.083  000.083: sourcing /usr/share/vim/vim74/lang/menu_en_gb.latin1.vim
+439.733  000.074  000.074: sourcing /usr/share/vim/vim74/lang/menu_en_gb.latin1.vim
+439.795  004.249  004.175: sourcing /usr/share/vim/vim74/lang/menu_en_gb.utf-8.vim
+454.695  000.202  000.202: sourcing /usr/share/vim/vim74/autoload/paste.vim
+485.295  095.917  091.383: sourcing /usr/share/vim/vim74/menu.vim
+508.947  000.742  000.742: sourcing /usr/share/vim/vim74/syntax/nosyntax.vim
+535.813  000.542  000.542: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+536.538  016.360  015.818: sourcing /usr/share/vim/vim74/syntax/synload.vim
+536.667  043.669  026.567: sourcing /usr/share/vim/vim74/syntax/syntax.vim
+554.025  000.493  000.493: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+562.354  000.543  000.543: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+578.257  000.523  000.523: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+578.717  034.130  032.571: sourcing /usr/share/vim/vim74/colors/desert.vim
+619.176  000.503  000.503: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+638.271  000.657  000.657: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+638.665  042.323  041.163: sourcing /usr/share/vim/vim74/colors/desert.vim
+639.978  350.343  124.018: sourcing /home/yyf/.vim_runtime/vimrcs/basic.vim
+885.454  000.969  000.969: sourcing /home/yyf/.vim_runtime/vimrcs/filetypes.vim
+941.184  001.254  001.254: sourcing /home/yyf/.vim_runtime/autoload/pathogen.vim
+963.544  001.239  001.239: sourcing /usr/share/vim/vim74/ftoff.vim
+1028.818  000.239  000.239: sourcing /usr/share/vim/vimfiles/ftdetect/clustershell.vim
+1248.060  000.342  000.342: sourcing /usr/share/vim/vimfiles/ftdetect/stp.vim
+1248.392  272.686  272.105: sourcing /usr/share/vim/vim74/filetype.vim
+1518.808  000.897  000.897: sourcing /usr/share/vim/vim74/ftoff.vim
+1583.556  000.394  000.394: sourcing /home/yyf/.vim_runtime/sources_non_forked/nginx.vim/ftdetect/nginx.vim
+1613.307  000.143  000.143: sourcing /home/yyf/.vim_runtime/sources_non_forked/rust.vim/ftdetect/rust.vim
+1636.655  000.337  000.337: sourcing /home/yyf/.vim_runtime/sources_non_forked/typescript-vim/ftdetect/typescript.vim
+1664.268  000.471  000.471: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-bundle-mako/ftdetect/mako.vim
+1696.186  000.576  000.576: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-coffee-script/ftdetect/coffee.vim
+1718.478  000.234  000.234: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-coffee-script/ftdetect/vim-literate-coffeescript.vim
+1749.407  000.225  000.225: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-fugitive/ftdetect/fugitive.vim
+1797.039  000.231  000.231: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-javascript/ftdetect/flow.vim
+1816.575  000.525  000.525: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-javascript/ftdetect/javascript.vim
+1838.502  000.252  000.252: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-less/ftdetect/less.vim
+1852.186  000.693  000.693: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-markdown/ftdetect/markdown.vim
+1874.332  000.404  000.404: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-pug/ftdetect/pug.vim
+1901.427  001.879  001.879: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-ruby/ftdetect/ruby.vim
+1920.411  002.798  002.798: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-ruby/ftdetect/ruby_extra.vim
+1938.053  000.702  000.702: sourcing /usr/share/vim/vimfiles/ftdetect/clustershell.vim
+2157.922  000.369  000.369: sourcing /usr/share/vim/vimfiles/ftdetect/stp.vim
+2158.383  632.587  622.354: sourcing /usr/share/vim/vim74/filetype.vim
+2201.706  001.316  001.316: sourcing /usr/share/vim/vim74/ftoff.vim
+2310.943  000.585  000.585: sourcing /home/yyf/.vim_runtime/sources_non_forked/nginx.vim/ftdetect/nginx.vim
+2355.909  000.451  000.451: sourcing /home/yyf/.vim_runtime/sources_non_forked/rust.vim/ftdetect/rust.vim
+2380.029  000.308  000.308: sourcing /home/yyf/.vim_runtime/sources_non_forked/typescript-vim/ftdetect/typescript.vim
+2405.599  000.328  000.328: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-bundle-mako/ftdetect/mako.vim
+2429.472  000.789  000.789: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-coffee-script/ftdetect/coffee.vim
+2445.798  000.482  000.482: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-coffee-script/ftdetect/vim-literate-coffeescript.vim
+2476.504  000.129  000.129: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-fugitive/ftdetect/fugitive.vim
+2504.763  000.192  000.192: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-javascript/ftdetect/flow.vim
+2515.708  000.399  000.399: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-javascript/ftdetect/javascript.vim
+2542.773  000.372  000.372: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-less/ftdetect/less.vim
+2567.948  000.474  000.474: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-markdown/ftdetect/markdown.vim
+2595.012  000.379  000.379: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-pug/ftdetect/pug.vim
+2642.043  001.590  001.590: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-ruby/ftdetect/ruby.vim
+2660.781  001.791  001.791: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-ruby/ftdetect/ruby_extra.vim
+2674.062  000.406  000.406: sourcing /usr/share/vim/vimfiles/ftdetect/clustershell.vim
+2684.035  000.286  000.286: sourcing /usr/share/vim/vimfiles/ftdetect/stp.vim
+2684.549  470.613  461.652: sourcing /usr/share/vim/vim74/filetype.vim
+20801.351  19887.703  18507.111: sourcing /home/yyf/.vim_runtime/vimrcs/plugins_config.vim
+21226.281  000.596  000.596: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+21279.621  000.639  000.639: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+21279.987  197.276  196.041: sourcing /usr/share/vim/vim74/colors/desert.vim
+21404.844  000.286  000.286: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+21418.595  000.602  000.602: sourcing /usr/share/vim/vim74/syntax/syncolor.vim
+21419.639  025.929  025.041: sourcing /home/yyf/.vim_runtime/sources_forked/peaksea/colors/peaksea.vim
+21484.866  618.424  394.219: sourcing /home/yyf/.vim_runtime/vimrcs/extended.vim
+21498.719  21258.691  403.252: sourcing $HOME/.vimrc
+21498.755  042.423: sourcing vimrc file(s)
+21639.352  000.310  000.310: sourcing /home/yyf/.vim_runtime/sources_non_forked/ack.vim/plugin/ack.vim
+21736.465  000.181  000.181: sourcing /home/yyf/.vim_runtime/sources_non_forked/ale/plugin/ale.vim
+21947.069  001.245  001.245: sourcing /home/yyf/.vim_runtime/sources_non_forked/auto-pairs/plugin/auto-pairs.vim
+22082.832  019.902  019.902: sourcing /home/yyf/.vim_runtime/sources_non_forked/bufexplorer/plugin/bufexplorer.vim
+22289.371  000.899  000.899: sourcing /home/yyf/.vim_runtime/sources_non_forked/ctrlp.vim/autoload/ctrlp/mrufiles.vim
+22290.390  089.541  088.642: sourcing /home/yyf/.vim_runtime/sources_non_forked/ctrlp.vim/plugin/ctrlp.vim
+22360.156  000.186  000.186: sourcing /home/yyf/.vim_runtime/sources_non_forked/gist-vim/plugin/gist.vim
+22460.503  000.135  000.135: sourcing /home/yyf/.vim_runtime/sources_non_forked/goyo.vim/plugin/goyo.vim
+22611.319  000.726  000.726: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline-ale/plugin/lightline/ale.vim
+22727.107  000.880  000.880: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline.vim/plugin/lightline.vim
+23101.534  000.758  000.758: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/autoload/nerdtree.vim
+23250.825  001.348  001.348: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/path.vim
+23299.317  000.478  000.478: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/menu_controller.vim
+23336.371  000.340  000.340: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/menu_item.vim
+23385.486  000.670  000.670: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/key_map.vim
+23455.882  000.645  000.645: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/bookmark.vim
+23501.156  000.450  000.450: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/tree_file_node.vim
+23527.241  000.929  000.929: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/tree_dir_node.vim
+23594.034  000.549  000.549: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/opener.vim
+23653.909  001.042  001.042: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/creator.vim
+23693.733  000.262  000.262: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/flag_set.vim
+23759.891  000.334  000.334: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/nerdtree.vim
+23822.836  001.264  001.264: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/ui.vim
+23897.002  000.178  000.178: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/event.vim
+23930.879  000.187  000.187: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/lib/nerdtree/notifier.vim
+24064.190  001.280  001.280: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/autoload/nerdtree/ui_glue.vim
+24318.638  000.253  000.253: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/nerdtree_plugin/exec_menuitem.vim
+24354.152  003.136  003.136: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/nerdtree_plugin/fs_menu.vim
+24385.165  000.162  000.162: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/nerdtree_plugin/vcs.vim
+24985.996  2156.508  2142.243: sourcing /home/yyf/.vim_runtime/sources_non_forked/nerdtree/plugin/NERD_tree.vim
+25065.278  000.303  000.303: sourcing /home/yyf/.vim_runtime/sources_non_forked/open_file_under_cursor.vim/plugin/open_file_under_cursor.vim
+25193.766  000.834  000.834: sourcing /home/yyf/.vim_runtime/sources_non_forked/rust.vim/plugin/cargo.vim
+25231.886  002.219  002.219: sourcing /home/yyf/.vim_runtime/sources_non_forked/rust.vim/plugin/rust.vim
+25358.665  000.533  000.533: sourcing /home/yyf/.vim_runtime/sources_non_forked/tabular/plugin/Tabular.vim
+25479.424  000.433  000.433: sourcing /home/yyf/.vim_runtime/sources_non_forked/tlib/plugin/02tlib.vim
+25561.311  002.884  002.884: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-abolish/plugin/abolish.vim
+25695.381  000.813  000.813: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-commentary/plugin/commentary.vim
+25975.086  000.736  000.736: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-expand-region/autoload/expand_region.vim
+25975.517  189.035  188.299: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-expand-region/plugin/expand_region.vim
+26085.176  005.701  005.701: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-fugitive/plugin/fugitive.vim
+26163.021  000.112  000.112: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-gist/plugin/gist.vim
+26487.988  001.740  001.740: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-gitgutter/autoload/gitgutter/utility.vim
+26519.282  001.663  001.663: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-gitgutter/autoload/gitgutter/highlight.vim
+26523.555  269.940  266.537: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-gitgutter/plugin/gitgutter.vim
+26626.394  000.966  000.966: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-indent-object/plugin/indent-object.vim
+26711.919  000.760  000.760: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-lastplace/plugin/vim-lastplace.vim
+26789.164  001.278  001.278: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-multiple-cursors/plugin/multiple_cursors.vim
+27018.216  000.220  000.220: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-addon-mw-utils/autoload/funcref.vim
+27019.139  128.699  128.479: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-snipmate/plugin/snipMate.vim
+27122.339  000.208  000.208: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-snippets/plugin/vimsnippets.vim
+27206.156  002.747  002.747: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-surround/plugin/surround.vim
+27737.071  008.154  008.154: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-yankstack/autoload/yankstack.vim
+27739.050  430.221  422.067: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-yankstack/plugin/yankstack.vim
+27823.702  000.405  000.405: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-zenroom2/plugin/zenroom2.vim
+27930.483  000.272  000.272: sourcing /home/yyf/.vim_runtime/sources_forked/set_tabline/plugin/set_tabline.vim
+28030.000  000.739  000.739: sourcing /home/yyf/.vim_runtime/sources_forked/vim-peepopen/plugin/peepopen.vim
+28045.297  006.930  006.930: sourcing /usr/share/vim/vimfiles/plugin/cctree.vim
+28058.335  000.250  000.250: sourcing /usr/share/vim/vim74/plugin/getscriptPlugin.vim
+28068.246  000.794  000.794: sourcing /usr/share/vim/vim74/plugin/gzip.vim
+28079.267  000.622  000.622: sourcing /usr/share/vim/vim74/plugin/matchparen.vim
+28092.855  002.786  002.786: sourcing /usr/share/vim/vim74/plugin/netrwPlugin.vim
+28097.170  000.094  000.094: sourcing /usr/share/vim/vim74/plugin/rrhelper.vim
+28105.710  000.160  000.160: sourcing /usr/share/vim/vim74/plugin/spellfile.vim
+28129.748  000.919  000.919: sourcing /usr/share/vim/vim74/plugin/tarPlugin.vim
+28144.830  000.455  000.455: sourcing /usr/share/vim/vim74/plugin/tohtml.vim
+28153.688  001.922  001.922: sourcing /usr/share/vim/vim74/plugin/vimballPlugin.vim
+28166.179  000.941  000.941: sourcing /usr/share/vim/vim74/plugin/zipPlugin.vim
+28294.368  000.618  000.618: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-snipmate/after/plugin/snipMate.vim
+28566.851  000.542  000.542: sourcing /home/yyf/.vim_runtime/sources_non_forked/tabular/autoload/tabular.vim
+28571.990  147.278  146.736: sourcing /home/yyf/.vim_runtime/sources_non_forked/tabular/after/plugin/TabularMaps.vim
+28572.101  3603.861: loading plugins
+28572.455  000.354: inits 3
+28611.811  039.356: reading viminfo
+28611.839  000.028: setting raw mode
+28611.875  000.036: start termcap
+28612.013  000.138: clearing screen
+28963.967  000.467  000.467: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-flake8/ftplugin/python_flake8.vim
+29040.714  000.475  000.475: sourcing /usr/share/vim/vim74/ftplugin/python.vim
+29197.988  001.222  001.222: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-python-pep8-indent/indent/python.vim
+29231.592  000.052  000.052: sourcing /usr/share/vim/vim74/indent/python.vim
+29263.071  001.116  001.116: sourcing /usr/share/vim/vim74/syntax/python.vim
+29383.061  038.576  038.576: sourcing /home/yyf/.vim_runtime/sources_non_forked/ctrlp.vim/autoload/ctrlp/utils.vim
+29493.940  841.019: opening buffers
+29610.614  001.533  001.533: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline.vim/autoload/lightline.vim
+29740.985  000.321  000.321: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline.vim/autoload/lightline/tab.vim
+30018.138  013.429  013.429: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline.vim/autoload/lightline/colorscheme.vim
+30019.760  079.008  065.579: sourcing /home/yyf/.vim_runtime/sources_non_forked/lightline.vim/autoload/lightline/colorscheme/wombat.vim
+30239.763  000.577  000.577: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-gitgutter/autoload/gitgutter.vim
+30241.200  666.821: BufEnter autocommands
+30241.222  000.022: editing files in windows
+30243.359  002.137: VimEnter autocommands
+30243.362  000.003: before starting main loop
+30786.835  073.483  073.483: sourcing /home/yyf/.vim_runtime/sources_non_forked/vim-fugitive/autoload/fugitive.vim
+30823.676  506.831: first screen update
+30823.680  000.004: --- VIM STARTED ---

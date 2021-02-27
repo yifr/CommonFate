@@ -1,6 +1,7 @@
 import os
 import bpy
 import time
+import json
 import datetime
 import numpy as np
 from pyquaternion import Quaternion
@@ -87,8 +88,8 @@ class RenderEngine:
         scene.cycles.device = "GPU"
         cycles_preferences.compute_device_type = device_type
 
-        scene.render.tile_x = 256
-        scene.render.tile_y = 256
+        scene.render.tile_x = 128
+        scene.render.tile_y = 128
 
         return activated_gpus
 
@@ -98,7 +99,7 @@ class BlenderScene(object):
                         device='CUDA',
                         engine='CYCLES',
                         render_size=512,
-                        samples=256
+                        samples=128
                         ):
         self.scene_dir = scene_dir
         self.data = bpy.data
@@ -121,12 +122,14 @@ class BlenderScene(object):
         if self.shape_params:
             return self.shape_params
 
-        param_file = os.path.join(self.scene_dir, 'params.txt')
+        param_file = os.path.join(self.scene_dir, 'params.json')
         if not os.path.exists(param_file):
             return None
 
-        param_data = open(param_file, 'r').read()
-        params = np.array([float(x.split(': ')[1]) for x in param_data.split('\n')])
+        with open(param_file, 'r') as f:
+            params = json.load(f)
+            self.shape_params = params
+
         return params
 
     def delete_all(self, obj_type):
@@ -150,19 +153,22 @@ class BlenderScene(object):
 
     def _generate_mesh(self, shape_params=None):
         """
+        shape_params: json dict with keys: 'scaling' and 'exponents'
         Returns points for a superquadric given some shape parameters
         """
-        if not self.get_shape_params() or shape_params:
-            self.shape_params = np.random.randint(0, 4, 3)
-            self.shape_params[2] = self.shape_params[0]
-
+        if self.get_shape_params() is None and shape_params is None:
+            exponents = list(np.random.randint(0, 4, 3))
+            exponents[2] = exponents[0]
+            scaling = [1, 1, 1, 1]
+            shape_params = {'scaling': scaling, 'exponents': exponents}
+            self.shape_params = shape_params
             # Save parameters
-            self.shape_param_file = os.path.join(self.scene_dir, 'params.txt')
+            self.shape_param_file = os.path.join(self.scene_dir, 'params.json')
             with open(self.shape_param_file, 'w') as f:
-                f.write(f'e1: {self.shape_params[0]:3f}\ne2: {self.shape_params[1]:3f}\ne3: {self.shape_params[2]:3f}')
+                json.dump(self.shape_params, f)
 
         n_points = 100
-        x, y, z = superquadrics.superellipsoid(self.shape_params, [1, 1, 1, 1], n_points)
+        x, y, z = superquadrics.superellipsoid(shape_params['exponents'], shape_params['scaling'], n_points)
 
         return x, y, z
 
@@ -171,9 +177,9 @@ class BlenderScene(object):
         Adds a mesh from shape parameters
         """
         if shape_params:
-            self.shape_params = list(shape_params)
+            self.shape_params = shape_params
 
-        x, y, z = self._generate_mesh()
+        x, y, z = self._generate_mesh(shape_params)
         faces, verts = superquadrics.get_faces_and_verts(x, y, z)
         edges = []
 
@@ -413,7 +419,7 @@ def main(args):
 
 if __name__=='__main__':
     parser = BlenderArgparse.ArgParser()
-    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=1000)
+    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=867)
     parser.add_argument('--root_dir', type=str, help='Output directory for data', default='scenes')
     parser.add_argument('--render_size', type=int, help='size of .png file to render', default=1024)
     parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=100)

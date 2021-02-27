@@ -1,44 +1,46 @@
-import numpy as np
-import trimesh
 import os
+import json
+import logging
+import numpy as np
+import superquadrics
 from tqdm import tqdm
 
-import logging
-import superquadrics
-from textures import dot_texture
-
 logging.basicConfig(level=logging.INFO)
-root_dir = '/home/yyf/CommonFate/scenes/'
+root_dir = '/om2/user/yyf/CommonFate/data'
 
 if not os.path.exists(root_dir):
     os.mkdir(root_dir)
 
-scene_num = 0
-n_scenes = 4000
-
 # Shape parameters
 n = 100           # Number points to generate per shape
-a = [1, 1, 1, 1] # [x_scale, y_scale, z_scale, toroid_inner_radius]
 
 # Range of exponents:
+exp_range = np.arange(0, 4.1, 0.25)
 
-points = np.linspace(0, )
-for i in tqdm(range(n_scenes)):
-    scene_dir = os.path.join(root_dir, 'scene_%03d'%scene_num)
-    # logging.info('SCENE: %s' % scene_dir)
-    if not os.path.exists(scene_dir):
-        os.mkdir(scene_dir)
+scene_num = 0
+print('Generating meshes...')
+for r in exp_range:
+    for t in exp_range:
+        for a in range(3):
+            scene_dir = os.path.join(root_dir, 'scene_%03d'%scene_num)
 
-    epsilons = np.random.uniform(0, 5, 3)
-    epsilons[2] = epsilons[0]
+            # logging.info('SCENE: %s' % scene_dir)
+            if not os.path.exists(scene_dir):
+                os.mkdir(scene_dir)
 
-    #logging.info('[SCENE: %s] Generating mesh with params: (e1=%.3f, e2=%.3f, e3=%.3f)...' %(scene_dir, epsilons[0], epsilons[1], epsilons[2]))
+            epsilons = [r, t, r]
 
-    x, y, z = superquadrics.superellipsoid(epsilons, a, n)
-    fname = os.path.join(scene_dir, 'mesh.obj')
-    superquadrics.save_obj_not_overlap(fname, x, y, z)
+            print('[SCENE: %s] Generating mesh with params: (e1=%.3f, e2=%.3f, e3=%.3f)...' %(scene_dir, epsilons[0], epsilons[1], epsilons[2]))
 
-    with open(os.path.join(scene_dir, 'params.txt'), 'w') as f:
-        f.write('e1: {:3f}\ne2: {:3f}\ne3: {:3f}'.format(epsilons[0], epsilons[1], epsilons[2]))
+            scaling = np.random.uniform(0.5, 2.1, 4).round(decimals=2)
+            x, y, z = superquadrics.superellipsoid(epsilons, scaling, n)
+            fname = os.path.join(scene_dir, 'mesh.obj')
+            superquadrics.save_obj_not_overlap(fname, x, y, z)
 
-    scene_num += 1
+            with open(os.path.join(scene_dir, 'params.json'), 'w') as f:
+                data = {'exponents': epsilons, 'scaling': list(scaling)}
+                json.dump(data, f)
+
+            scene_num += 1
+
+print(f'Done generating {scene_num} scenes')

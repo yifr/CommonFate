@@ -43,7 +43,6 @@ def save_obj_not_overlap(path_save, x, y, z):
     z = np.transpose(z, (1, 0))
     hei, wid = x.shape[0], x.shape[1]
     count = 0
-    print(x.shape, x)
     with open(path_save, "w+") as fout:
         for i in range(1, hei - 1):
             for j in range(0, wid - 1):

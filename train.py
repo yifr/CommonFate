@@ -16,13 +16,16 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
     for batch_idx, scene_idx in enumerate(tqdm(scene_loader.train_idxs)):
         data = scene_loader.get_scene(scene_idx)
         frames = data['frame'].to(device)
-        target = data['shape_params'][0, :2].to(device)
+        target = data['shape_params']
+        mean_target = torch.mean(target, dim=0)
 
         optimizer.zero_grad()
-        pred = model(frames)
-        shape_pred = torch.mean(pred, dim=0)
+        shape_pred = model(frames)
+    
+        # shape_pred = torch.mean(shape_pred, dim=0)
+        # shape_pred = torch.sigmoid(shape_pred) * 4  # shape exponents are in the range [0, 4] -> this enforces a non-negativity
 
-        loss = F.mse_loss(shape_pred, target)
+        loss = F.mse_loss(shape_pred, mean_target)
         loss.backward()
         optimizer.step()
 
@@ -46,11 +49,13 @@ def test_shapenet(args, model, device, scene_loader):
         for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
             data = scene_loader.get_scene(scene_idx)
             frames = data['frame'].to(device)
-            target = data['shape_params'][0, :2].to(device)
+            mean_target = torch.mean(data['shape_params'], axis=0)
 
-            output = model(frames)
-            pred_shape = torch.mean(output, dim=0)
-            loss = F.mse_loss(pred_shape, target)
+            shape_pred = model(frames)
+            # shape_pred = torch.mean(output, dim=0)
+            # shape_pred = torch.sigmoid(shape_pred) * 4  # shape exponents are in the range [0, 4] -> this enforces a non-negativity
+
+            loss = F.mse_loss(shape_pred, mean_target)
             test_loss_mse += loss
 
     test_loss_mse /= len(scene_loader.test_idxs)
@@ -142,14 +147,17 @@ def test_posenet(args, model, device, scene_loader):
     torch.save(model.state_dict(), args.model_save_path)
 
 def main():
-    wandb.init()
+    wandb.init(settings=wandb.Settings(start_method='fork'))
+
     # Training settings
     parser = argparse.ArgumentParser(description='CommonFate State Inference')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
-                        help='input batch size for training (default: 64)')
+                        help='input batch size for training (default: 100)')
     parser.add_argument('--scene_dir', type=str, default='scenes', metavar='DIR',
                         help='directory in which to look for scenes')
-    parser.add_argument('--n_scenes', type=int, default=400, metavar='N',
+    parser.add_argument('--run_name', type=str, default='shapenet', metavar='NAME',
+                        help='name to log run with in wandb')
+    parser.add_argument('--n_scenes', type=int, default=650, metavar='N',
                         help='Total number of scenes to train on')
     parser.add_argument('--model_save_path', type=str, default='saved_models/shapenet.pt', metavar='P',
                         help='path to save model')
@@ -157,7 +165,7 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.001)')
     parser.add_argument('--weight_decay', type=float, default=0.001, metavar='M',
                         help='L2 norm (default: 0.01)')
@@ -173,6 +181,8 @@ def main():
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
+    if args.run_name:
+        wandb.run.name =  args.run_name
     wandb.config.update(args)
 
     torch.manual_seed(args.seed)
@@ -181,10 +191,9 @@ def main():
 
     wargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    out_size = 2 if args.pred_type == 'shape' else 6
-    model = cnn.SimpleCNN(out_size=out_size).to(device) #cnn.ResNet().to(device)
-    scene_loader = SceneLoader(root_dir=args.scene_dir, n_scenes=args.n_scenes, img_size=256, device=device,
-                               as_rgb=False, transforms=model.get_transforms())
+    out_size = 5 if args.pred_type == 'shape' else 6
+    model = cnn.ShapeNet(out_size=out_size).to(device) #cnn.ResNet().to(device)
+    scene_loader = SceneLoader(root_dir=args.scene_dir, n_scenes=args.n_scenes, img_size=256, device=device, as_rgb=False, transforms=model.get_transforms(), seed=args.seed)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     wandb.watch(model)
 

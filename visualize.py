@@ -55,7 +55,7 @@ def render_ground_truth(scene_num):
     scene.rotate(obj, rotation)
     scene.render(output_dir='ground_truth')
 
-def render_from_predictions(models={'rotation': None}, scene_num=0, textured=False):
+def render_from_predictions(models={'rotation': None}, scene_num=0, textured=False, device='cpu'):
     """
     Given a model and a scene, render predictions
     Params:
@@ -69,16 +69,20 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
     scene = BlenderScene(scene_dir)
     print(f'Initialized scene for {scene_dir}. Exporting predictions...')
 
-    predictions = load_predictions(models, scene_num)
+    predictions = load_predictions(models, scene_num, device=device)
     pred_types = models.keys()
 
     # If we're visualizing shape predictions, create new mesh
     obj = None
     if 'shape_params' in pred_types:
-        shape_pred = list(np.mean(predictions['shape_params'].detach().numpy(), axis=0))
-        shape_pred.append(shape_pred[0])
+        shape_pred = predictions['shape_params'].detach().cpu().numpy()
+        exponents = list(shape_pred[:2])
+        exponents.append(exponents[0])
+        scaling = list(shape_pred[2:])
+
+        shape_params = {'exponents': exponents, 'scaling': scaling}
         print('Predicted shape: ', shape_pred)
-        obj = scene.create_mesh(shape_params=shape_pred)
+        obj = scene.create_mesh(shape_params=shape_params)
         print('Creating new object')
     else:
         print('Loading mesh')
@@ -92,8 +96,8 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
         quaternions = ortho6d_to_quaternion(predictions['rotation'])
     else:
         data = np.load(os.path.join(scene_dir, 'data.npy'), allow_pickle=True).item()
-        quaternions = data['rotation']
-
+        quaternions = data['quaternion']
+    print(quaternions)
     scene.rotate(obj, quaternions)
     prediction_dir = os.path.join(scene_dir, 'predictions')
     if not os.path.exists(prediction_dir):
@@ -102,7 +106,7 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
     print('Rendering predictions')
     scene.render(output_dir='predictions')
 
-def load_predictions(models={'rotation': None}, scene_num=0, overwrite=True):
+def load_predictions(models={'rotation': None}, scene_num=0, device='cpu', overwrite=True):
     """
     Loads predictions if they exist, creates predictions file if they don't exist
     Params
@@ -125,7 +129,7 @@ def load_predictions(models={'rotation': None}, scene_num=0, overwrite=True):
 
         # output predictions if they don't exist
         if pred_type not in predictions.keys():
-            preds = create_predictions(model, scene_num=scene_num, pred_type=pred_type, save=True)
+            preds = create_predictions(model, scene_num=scene_num, pred_type=pred_type, device=device, save=True)
             predictions[pred_type] = preds
 
     return predictions
@@ -148,9 +152,7 @@ def create_predictions(model=None, device='cpu', scene_num=0, pred_type='rotatio
 
     # Load model and data to predict
     transforms = model.get_transforms()
-    as_rgb = False
-    if str(model) == 'ResNet':
-        as_rgb = True
+    as_rgb = False if str(model) != 'ResNet' else True
 
     print('Loading data...')
     # print(f'root dir: {ROOT_SCENE_DIR}, pred_type: {pred_type}, scene_num: {scene_num}')
@@ -166,6 +168,10 @@ def create_predictions(model=None, device='cpu', scene_num=0, pred_type='rotatio
     model.eval()
     print('Data loaded. Generating model predictions...')
     predictions = model(input_data)
+    # if pred_type == 'shape_params':
+    #     predictions = torch.mean(predictions, dim=0)
+    #     predictions = torch.sigmoid(predictions) * 4
+
     predicted = predictions.detach().cpu().numpy()
 
     if save:
@@ -181,14 +187,14 @@ def create_predictions(model=None, device='cpu', scene_num=0, pred_type='rotatio
     return predictions
 
 
-def stitch_prediction_video(scene_num, n_frames=100):
+def stitch_prediction_video(scene_num, outfile, n_frames=100):
     scene_dir = os.path.join(ROOT_SCENE_DIR, f'scene_{scene_num:03d}')
 
     fig, (gt_fig, stimuli_fig, predicted_fig) = plt.subplots(1, 3, figsize=(20, 20))
 
-    gt_fig.set_title('Ground Truth (shape/rotation)')
+    gt_fig.set_title('Ground Truth')
     stimuli_fig.set_title('Stimuli')
-    predicted_fig.set_title('Predicted (shape/rotation)')
+    predicted_fig.set_title('Predicted Shape')
     gt_fig.axis('off')
     stimuli_fig.axis('off')
     predicted_fig.axis('off')
@@ -221,29 +227,30 @@ def stitch_prediction_video(scene_num, n_frames=100):
     # FFMpegWriter = animation.writers['ffmpeg']
     # writer = FFMpegWriter(fps=25)
     writer = animation.PillowWriter(fps=25)
-    ani.save('predictions.gif', writer=writer)
+    ani.save(outfile, writer=writer)
     print('Done.')
 
 def main():
-    viz_types = [] #['predictions'] #['ground_truth']
-    scene_num = 25
+    device = 'cuda'
+    viz_types = []# ['predictions', 'ground_truth']
+    scenes = [25, 100, 400, 500, 670, 660]
 
-    if 'predictions' in viz_types:
-        print('Initializing model...')
-        rotation_model = cnn.SimpleCNN(out_size=2)
+    model = cnn.ShapeNet(out_size=5).to(device)
 
-        model_path = os.path.join(os.getcwd(), 'saved_models/shapenet.pt')
-        model = torch.load(model_path, map_location=torch.device('cpu'))
+    model_path = os.path.join(os.getcwd(), 'saved_models/shapenet_mean_ftvec.pt')
+    model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
+    for scene_num in scenes:
+        if 'predictions' in viz_types:
+            print('Initializing model...')
 
-        #rotation_model = cnn.SimpleCNN()
-        render_from_predictions(models={'shape_params': rotation_model}, scene_num=scene_num)
+            render_from_predictions(models={'shape_params': model}, scene_num=scene_num, device=device)
 
-    if 'ground_truth' in viz_types:
-        print('Rendering Ground truth frames')
-        render_ground_truth(scene_num=scene_num)
+        if 'ground_truth' in viz_types:
+            print('Rendering Ground truth frames')
+            render_ground_truth(scene_num=scene_num)
 
-    stitch_prediction_video(scene_num)
+        stitch_prediction_video(scene_num, outfile=f'media/shapenet_mean_ftvec/scene_{scene_num}_predictions.gif')
 
 if __name__=='__main__':
     main()

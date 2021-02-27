@@ -5,6 +5,33 @@ import torchvision.models as models
 from torchvision import transforms as T
 from . import loss
 
+class ShapeNet(nn.Module):
+
+    def __init__(self, img_size=256, out_size=5):
+        super(ShapeNet, self).__init__()
+        self.img_size = img_size
+        self.out_size = out_size
+        self.feature_extractor = SimpleCNN(img_size=img_size, out_size=20)
+        self.fc1 = nn.Linear(20, 10)
+        self.fc2 = nn.Linear(10, 5)
+
+        self._transforms = T.Compose([T.Resize(img_size),
+                                      T.ToTensor()]
+                                    )
+    def get_transforms(self):
+        return self._transforms
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        x = torch.mean(x, dim=0)
+        
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        x = torch.sigmoid(x) * 4
+        
+        return x
+
 class SimpleCNN(nn.Module):
     """
     4 Layer feedforward CNN with dropout after convolutional layers
@@ -20,8 +47,8 @@ class SimpleCNN(nn.Module):
         self.fc1 = nn.Linear(40 * conv_out * conv_out, 50)
         self.fc2 = nn.Linear(50, out_size)
 
-        self._transforms = T.Compose([T.ToTensor(),
-                                      T.Resize(img_size)]
+        self._transforms = T.Compose([T.Resize(img_size),
+                                      T.ToTensor()]
                                     )
 
     def get_transforms(self):
@@ -44,6 +71,9 @@ class SimpleCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
+        
+        x = torch.mean(x, dim=0)
+        x = torch.sigmoid(x) * 4
 
         return x
 

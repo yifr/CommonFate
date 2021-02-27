@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import numpy as np
 import torch
 import torchvision
@@ -15,12 +16,11 @@ class Scene(Dataset):
         self.root_dir = root_dir
         self.scene_dir = os.path.join(root_dir, 'scene_%03d' % scene_number)
         self.image_dir = os.path.join(self.scene_dir, 'images')
-        self.shape_params = self.get_exponents()
         self.n_frames = n_frames
         self.img_size = img_size
 
         if transforms == None:
-            transforms = T.Compose([T.Resize(256), T.ToTensor()])
+            transforms = T.Compose([T.Resize(self.img_size), T.ToTensor()])
         self.transforms = transforms
 
         self.device = device
@@ -30,6 +30,7 @@ class Scene(Dataset):
         scene_data = os.path.join(self.scene_dir, 'data.npy')
         data_dict = np.load(scene_data, allow_pickle=True).item()
 
+        self.shape_params = self.get_exponents()
         self.rotations = data_dict['rotation']
         self.translation = data_dict['translation']
         self.angle = data_dict['angle']
@@ -52,7 +53,7 @@ class Scene(Dataset):
         filename = os.path.join(self.image_dir, 'img_%04d.png' % frame_idx)
         img_raw = Image.open(filename)
 
-        # If we're using a pre-trained model, create 3 channels (images are stored as 1 channel Black and White)
+        # If we're using a pre-trained model, create 3 channels (images are stacked 1 channel Black and White)
         if self.as_rgb:
             img_raw = np.array(img_raw)
             img_raw = np.repeat(img_raw[..., np.newaxis], 3, -1)
@@ -69,15 +70,16 @@ class Scene(Dataset):
 
     def get_exponents(self):
         """
-        Extracts exponents from params.txt file in scene dir (exponents are stored in a
-        .txt file because of something called "Tech Debt", where stupid choices are made
-        early on and then you just stick to them.)
+        Extracts exponents and scaling from params.json file in scene dir and returns as torch tensor
         Args:
             scene_dir (string): directory containing params.txt file
         """
-        param_file = os.path.join(self.scene_dir, 'params.txt')
-        param_data = open(param_file, 'r').read()
-        params = torch.tensor([float(x.split(': ')[1]) for x in param_data.split('\n')], dtype=torch.float32)
+        param_file = os.path.join(self.scene_dir, 'params.json')
+        with open(param_file, 'r') as f:
+            param_data = json.load(f)
+        exponents = torch.tensor(param_data['exponents'][:-1], dtype=torch.float32)
+        scaling = torch.tensor(param_data['scaling'][:-1], dtype=torch.float32)    # currently we only need the scaling parameters for x, y, z. The fourth parameter is for inner toroid width
+        params = torch.cat((exponents, scaling), axis=0).to(self.device)
         return params
 
 class SceneLoader():
@@ -94,7 +96,7 @@ class SceneLoader():
 
     def __init__(self, root_dir, transforms=None, device='cuda',
                  n_scenes=0, n_frames=100, img_size=128,
-                 batch_size=100, train_size=0.8, as_rgb=False):
+                 batch_size=100, train_size=0.8, as_rgb=False, seed=42):
         """
         Args:
             root_dir (string): root directory for the generated scenes
@@ -108,6 +110,7 @@ class SceneLoader():
         self.transforms = transforms
         self.device = device
         self.batch_size = batch_size # Batch size is defined over frames per scene
+        self.seed = seed
 
         if n_scenes == 0:
             self.n_scenes = len(os.listdir(root_dir))
@@ -124,8 +127,9 @@ class SceneLoader():
 
     def train_test_split(self, train_size=0.8, test_size=0.2):
         n_train = int(train_size * self.n_scenes)
+        np.random.seed(self.seed)
         self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
-        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs) # remaining indexes used for text
+        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs) # remaining indexes used for test
 
     def __len__(self):
         """
