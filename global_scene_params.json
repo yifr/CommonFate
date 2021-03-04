@@ -1,0 +1,15 @@
+{
+ "trajectory_LED_two_shapes_v0":
+    {
+        "camera_location": [16, -15, 12],
+        "camera_rotation_euler": [1.1093193292617798, 1.4043230578408838e-07, 0.8149284720420837],
+        "camera_sensor_width": 25,
+        "render_frame_boundaries": {"bottom_left": [-2.91, -3.66, -0.75],
+                                    "bottom_right": [3.45, 3.15, -0.75],
+                                    "top_right": [2.25, 4.35, 2.70],
+                                    "top_left": [-4.15, -2.45, 2.70]
+                                }
+
+    }
+}
+
