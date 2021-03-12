@@ -24,7 +24,7 @@ sys.path.append(generator_path)
 import utils
 import superquadrics
 import BlenderArgparse
-from textures import dot_texture
+import textures
 print(os.getcwd())
 
 
@@ -238,7 +238,7 @@ class BlenderScene(object):
         self.set_mode('EDIT')
         status = bpy.ops.uv.unwrap()
 
-        texture_params = {'min_diam': 0.1, 'max_diam': 6, 'n_dots': 18000, 'height': 2048, 'width': 2048, 'sequence': False}
+        texture_params = {'min_diam': 0.1, 'max_diam': 6, 'n_dots': 25000, 'height': 2048, 'width': 2048, 'sequence': True, 'noisy_texture': True}
         self.texture_mesh(material_name='Background', texture_file='background', overwrite=True,
         texture_params=texture_params, mesh_size=size, unwrap=False)
         
@@ -275,8 +275,13 @@ class BlenderScene(object):
             replicas = 1
             if sequence:
                 replicas = self.n_frames
-    
-            texture = dot_texture(height=height, width=width,
+
+            if texture_params.get('noisy_texture'):
+                texture_func = textures.noisy_dot_texture
+            else:
+                texture_func = textures.dot_texture
+
+            texture = texture_func(height=height, width=width,
                               min_diameter=min_dot_diam,
                               max_diameter=max_dot_diam,
                               n_dots=n_dots,
@@ -508,14 +513,14 @@ class BlenderScene(object):
         camera_rot = bpy.data.objects['Camera'].rotation_euler
         self.set_light_source('SUN', camera_loc, camera_rot)
 
-        #world_nodes = self.data.worlds['World'].node_tree.nodes
-        #world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
-        #world_nodes['Background'].inputs['Strength'].default_value = 1.5
+        # world_nodes = self.data.worlds['World'].node_tree.nodes
+        # world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+        # world_nodes['Background'].inputs['Strength'].default_value = 1.5
 
         for mesh_id in range(self.n_shapes):
             obj = self.load_mesh(mesh_id=mesh_id)
             texture_file = 'texture.png'
-            #self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file)
+            self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file)
 
             rotation_data = self.generate_random_rotation(mesh_id=mesh_id)
             self.animate_rotation(obj, rotation_data[mesh_id]['quaternion'], mesh_id=mesh_id)
@@ -527,7 +532,7 @@ class BlenderScene(object):
         #     obj.select_set(True)
         # bpy.ops.view3d.camera_to_view_selected()
 
-        #self.add_background_plane()
+        self.add_background_plane()
         #self.set_background_color(color=(255,255,255,1))
         for obj in self.objects:
             obj.select_set(True)
