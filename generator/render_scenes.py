@@ -2,6 +2,7 @@ import os
 import bpy
 import time
 import json
+import copy
 import bmesh
 import datetime
 import numpy as np
@@ -206,15 +207,15 @@ class BlenderScene(object):
 
         mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
         new_obj = list(set(bpy.context.scene.objects) - old_objs)[0]
-        
+
         return new_obj
 
-    def add_background_plane(self):
+    def add_background_plane(self, texture_params={}):
         """
         Adds plane to background and adds image texture that can be modified during animation.
-        The texture material is added with the name "Background" for later access. 
+        The texture material is added with the name "Background" for later access.
         """
- 
+
         mesh = bpy.data.meshes.new("Plane")
         obj = bpy.data.objects.new("Plane", mesh)
 
@@ -238,16 +239,24 @@ class BlenderScene(object):
         self.set_mode('EDIT')
         status = bpy.ops.uv.unwrap()
 
-        texture_params = {'min_diam': 0.1, 'max_diam': 6, 'n_dots': 25000, 'height': 2048, 'width': 2048, 'sequence': True, 'noisy_texture': True}
-        self.texture_mesh(material_name='Background', texture_file='background', overwrite=True,
-        texture_params=texture_params, mesh_size=size, unwrap=False)
-        
+        texture = {}
+        texture['min_diam'] = texture_params.get('min_diam', 0.1)
+        texture['max_diam'] = texture_params.get('max_diam', 6)
+        texture['n_dots'] = texture_params.get('max_diam', 25000)
+        texture['height'] = texture_params.get('height', 2048)
+        texture['width'] = texture_params.get('width', 2048)
+        texture['sequence'] = texture_params.get('sequence', False)
+        texture['noisy_texture'] = texture_params.get('noisy_texture', False)
+
+        self.texture_mesh(material_name='Background', texture_file='background', overwrite=True, \
+                            texture_params=texture, mesh_size=size, unwrap=False)
+
         obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
         obj.location = [-10, 10, 0]
-        
+
         return
 
-    def texture_mesh(self, obj=None, material_name="texture", texture_file="texture.png", texture_params={}, 
+    def texture_mesh(self, obj=None, material_name="texture", texture_file="texture.png", texture_params={},
                     overwrite=True, unwrap=True, mesh_size=1):
         """
         Add texture to a given object. If obj==None, take the active object
@@ -287,11 +296,11 @@ class BlenderScene(object):
                               n_dots=n_dots,
                               save_file=texture_file,
                               replicas=replicas,
-                              sequence=sequence) 
+                              sequence=sequence)
 
         if texture_params.get('sequence'):
             texture_file += '_0000.png'
-            
+
         image = self.data.images.load(filepath=texture_file)
         if unwrap:
             bpy.ops.uv.cube_project(cube_size=mesh_size)
@@ -332,15 +341,15 @@ class BlenderScene(object):
 
         if obj.data.materials:
             obj.data.materials[0] = mat
-            
+
             print('overwriting material')
         else:
             obj.data.materials.append(mat)
-            
+
             print('adding new material')
-        
+
         print('...done texturing')
-        return 
+        return
 
     def set_background_color(self, color=(255,255,255,1)):
         """
@@ -386,7 +395,7 @@ class BlenderScene(object):
         light_object = bpy.data.objects.new(name='Light', object_data=light_data)
         bpy.context.collection.objects.link(light_object)
         bpy.context.view_layer.objects.active = light_object
-        
+
         light_object.data.use_shadow = False
         light_object.cycles['cast_shadow'] = False
 
@@ -430,25 +439,45 @@ class BlenderScene(object):
         data = {}
         if os.path.exists(self.rotation_data):
             data = np.load(self.rotation_data, allow_pickle=True).item()
-        
+
         if not data.get(mesh_id):
             data[mesh_id] = {}
-        
+
         n_frames = self.n_frames
         data[mesh_id]['trajectory'] = np.zeros((n_frames, 3))
-        
-        if mesh_id == 0:
-            begin, end = 'bottom_left', 'top_right'
-        elif mesh_id == 1:
-            begin, end = 'top_left', 'bottom_right'
 
-        x1, y1, z1 = self.render_frame_boundaries[begin]
-        x2, y2, z2 = self.render_frame_boundaries[end]
+        quadrants = np.random.choice(list(self.render_frame_boundaries.keys()), 2, replace=False)
+        locations = [self.render_frame_boundaries[quadrant] for quadrant in quadrants]
+        print(quadrants)
+        for i, quadrant in enumerate(quadrants):
+            y, x = quadrant.split('_')
+            if y == 'top':
+                y_range = locations[i][1] - self.y_len / 2
+            else:
+                y_range = locations[i][1] + self.y_len / 2
+
+            if x == 'right':
+                x_range = locations[i][0] - self.x_len / 2
+            else:
+                x_range = locations[i][0] + self.x_len / 2
+
+            # Randomly sample starting point along either x or y axis of a quadrant
+            if np.random.rand() > 0.5:
+                # Sample starting point along y region
+                locations[i][1] = np.random.uniform(locations[i][1], y_range)
+            else:
+                locations[i][0] = np.random.uniform(locations[i][0], x_range)
+
+        self.render_frame_boundaries.pop(quadrants[0])
+        self.render_frame_boundaries.pop(quadrants[1])
+
+        x1, y1, z1 = locations[0]
+        x2, y2, z2 = locations[1]
 
         scene = self.scene
         scene.frame_start = 1
         scene.frame_end = self.n_frames
-        
+
         obj.location = [x1, y1, z1]
         obj.keyframe_insert('location', frame = 1)
 
@@ -457,7 +486,7 @@ class BlenderScene(object):
 
         for i in range(n_frames):
             bpy.context.scene.frame_set(i)
-            data[mesh_id]['trajectory'][i] = obj.location   
+            data[mesh_id]['trajectory'][i] = obj.location
 
         bpy.context.scene.frame_set(1)
 
@@ -496,7 +525,7 @@ class BlenderScene(object):
             obj.rotation_quaternion = q
             obj.keyframe_insert('rotation_quaternion', frame=frame + 1)
 
-        return 
+        return
 
     def render(self, output_dir='images'):
         img_path = os.path.join(self.scene_dir, output_dir)
@@ -559,15 +588,17 @@ def main(args):
         scene = BlenderScene(scene_dir)
         scene.n_shapes = 2
         scene.n_frames = args.n_frames
-        
+
         # Set camera properties for scene
         camera = scene.data.objects['Camera']
         camera.location = global_scene_params['camera_location']
         camera.rotation_euler = global_scene_params['camera_rotation_euler']
         camera.data.sensor_width = global_scene_params['camera_sensor_width']
-        scene.render_frame_boundaries = global_scene_params['render_frame_boundaries']
+        scene.render_frame_boundaries = copy.deepcopy(global_scene_params['render_frame_boundaries'])
+        scene.x_len = scene.render_frame_boundaries['top_right'][0] - scene.render_frame_boundaries['top_left'][0]
+        scene.y_len = scene.render_frame_boundaries['top_right'][1] - scene.render_frame_boundaries['bottom_right'][1]
 
-        # Pass off the rest of the default scene creation 
+        # Pass off the rest of the default scene creation
         scene.create_default_scene()
 
         # Add a render timestamp
