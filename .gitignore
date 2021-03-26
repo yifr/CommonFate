@@ -15,3 +15,4 @@ slurm-*
 .vscode/
 *.pt
 media/*
+render_logs

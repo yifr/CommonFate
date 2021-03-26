@@ -63,7 +63,7 @@ def save_obj_not_overlap(path_save, x, y, z):
         fout.write("f %d %d %d\n" % (count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
 
 
-def get_faces_and_verts(x, y, z, threshold=-2):
+def get_faces_and_verts(x, y, z, use_existing_faces=True):
     """
     This function returns faces adn vertices for super-ellpsoid w/o overlap: the rightmost vertices are not coincide with the leftmost points,
     and only one vertex at the top and bottom
@@ -77,25 +77,20 @@ def get_faces_and_verts(x, y, z, threshold=-2):
     verts = []
     for i in range(hei):
         for j in range(wid):
-            if threshold > 0:
-                if np.abs(x[i, j]) > threshold or np.abs(y[i, j]) > threshold or np.abs(z[i, j]) > threshold:
-                    continue
-                verts.append((x[i, j], y[i, j], z[i, j]))
-            else:
-                verts.append((x[i, j], y[i, j], z[i, j]))
-    # Write face: we could not write face when we filter out vertices by threshold
-    if threshold < 0:
-        for i in range(hei - 1):
-            for j in range(wid - 1):
-                faces.append(((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1))
-                faces.append(((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1))
+            verts.append((x[i, j], y[i, j], z[i, j]))
 
-    current_path = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-    try:
-        faces = list(np.load(os.path.join(current_path, 'faces.npy'), allow_pickle=True))
-    except:
-        print(f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
-              To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.')
+    for i in range(hei - 1):
+        for j in range(wid - 1):
+            faces.append(((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1))
+            faces.append(((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1))
+
+    if use_existing_faces:
+        current_path = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+        try:
+            faces = list(np.load(os.path.join(current_path, 'faces.npy'), allow_pickle=True))
+        except:
+            print(f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
+                To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.')
     return faces, verts
 
 def sgn(x):
@@ -133,18 +128,16 @@ def get_eta_and_w(n, etamax = np.pi / 2, wmax = np.pi):
     w = wmin + xv * dw
     return eta, w
 
-def superellipsoid(epsilon, a, n, a0=1):
+def superellipsoid(epsilon, a, n):
     """
     We follow https://en.wikipedia.org/wiki/Superquadrics, (code there should be superellipsoid)
     a is a 3-element vector: A, B, C
-    epsilon is a 3-element vector: 2/r, 2/s, 2/t
-    NOTE(Huayi): different from superellipsoid_taperingz_blendingx. and superquadrics.pdf EQ 2.10
+    epsilon is a 2-element vector: 2/r, 2/s
     """
     eta, w = get_eta_and_w(n)
-    x = a[0] * signed_cos(eta, epsilon[0]) * signed_cos(w, epsilon[0])
-    y = a[1] * signed_cos(eta, epsilon[1]) * signed_sin(w, epsilon[1])
-    z = a[2] * signed_sin(eta, epsilon[2])
-    x, y, z = a0 * x, a0 * y, a0 * z
+    x = a[0] * signed_cos(eta, epsilon[0]) * signed_cos(w, epsilon[1])
+    y = a[1] * signed_cos(eta, epsilon[0]) * signed_sin(w, epsilon[1])
+    z = a[2] * signed_sin(eta, epsilon[0])
     return x, y, z
 
 def superhyperboloid_one_piece(epsilon, a, n):
@@ -154,10 +147,10 @@ def superhyperboloid_one_piece(epsilon, a, n):
     eta, w = get_eta_and_w(n)
     x = a[0] * signed_sec(eta, epsilon[0]) * signed_cos(w, epsilon[0])
     y = a[1] * signed_sec(eta, epsilon[1]) * signed_sin(w, epsilon[1])
-    z = a[2] * signed_tan(eta, epsilon[2])
+    z = a[2] * signed_tan(eta, epsilon[0])
     return x, y, z
 
-def supertoroids(epsilon, a, n):
+def supertoroid(epsilon, a, n):
     """
     https://cse.buffalo.edu/~jryde/cse673/files/superquadrics.pdf EQ 2.22
     """

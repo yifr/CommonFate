@@ -32,7 +32,7 @@ print(os.getcwd())
 ROOT_SCENE_DIR = '/om2/user/yyf/CommonFate/data/'
 
 class RenderEngine:
-    def __init__(self, scene, device='CUDA', engine='CYCLES', render_size=512, samples=256):
+    def __init__(self, scene, device='CUDA', engine='CYCLES', render_size=256, samples=256):
         self.scene = scene
         self.device = device
         self.engine = engine
@@ -57,6 +57,7 @@ class RenderEngine:
     def set_render_settings(self):
         # Set properties to increase speed of render time
         scene = self.scene
+        scene.render.engine = self.engine  # use cycles for headless rendering
         scene.render.resolution_x = self.render_size
         scene.render.resolution_y = self.render_size
         scene.render.image_settings.color_mode = 'BW'
@@ -102,14 +103,17 @@ class BlenderScene(object):
                         shape_params=None,
                         device='CUDA',
                         engine='CYCLES',
+                        n_frames=100,
                         render_size=512,
                         samples=128
                         ):
         self.scene_dir = scene_dir
         self.data = bpy.data
         self.context = bpy.context
+        self.n_frames = n_frames
         self.shape_params = shape_params
-        self.renderer = RenderEngine(self.scene, device, engine, render_size, samples)
+        self.renderer = RenderEngine(self.scene, device=device, engine=engine, 
+                                    render_size=render_size, samples=samples)
         self.rotation_data = os.path.join(self.scene_dir, 'data.npy')
         self.render_frame_boundaries = None
         self.delete_all('MESH')
@@ -207,10 +211,9 @@ class BlenderScene(object):
 
         mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
         new_obj = list(set(bpy.context.scene.objects) - old_objs)[0]
-
         return new_obj
 
-    def add_background_plane(self, texture_params={}):
+    def add_background_plane(self, texture_params={}, overwrite=False):
         """
         Adds plane to background and adds image texture that can be modified during animation.
         The texture material is added with the name "Background" for later access.
@@ -240,15 +243,14 @@ class BlenderScene(object):
         status = bpy.ops.uv.unwrap()
 
         texture = {}
-        texture['min_diam'] = texture_params.get('min_diam', 0.1)
-        texture['max_diam'] = texture_params.get('max_diam', 6)
-        texture['n_dots'] = texture_params.get('max_diam', 25000)
+        texture['min_diam'] = texture_params.get('min_diam', 5)
+        texture['max_diam'] = texture_params.get('max_diam', 10)
+        texture['n_dots'] = texture_params.get('max_diam', 7500)
         texture['height'] = texture_params.get('height', 2048)
         texture['width'] = texture_params.get('width', 2048)
-        texture['sequence'] = texture_params.get('sequence', False)
-        texture['noisy_texture'] = texture_params.get('noisy_texture', False)
+        texture['noise'] = texture_params.get('noise', 5.0)
 
-        self.texture_mesh(material_name='Background', texture_file='background', overwrite=True, \
+        self.texture_mesh(material_name='Background', texture_file='background', overwrite=overwrite, \
                             texture_params=texture, mesh_size=size, unwrap=False)
 
         obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
@@ -275,17 +277,15 @@ class BlenderScene(object):
             os.makedirs(os.path.join(self.scene_dir, 'textures'), exist_ok=True)
 
             print('Generating texture')
-            min_dot_diam = texture_params.get('min_diam', np.random.randint(25, 35))
-            max_dot_diam = texture_params.get('max_diam', np.random.randint(55, 65))
-            n_dots = texture_params.get('n_dots', np.random.randint(35, 45))
+            min_dot_diam = texture_params.get('min_diam', 25)
+            max_dot_diam = texture_params.get('max_diam', 100)
+            n_dots = texture_params.get('n_dots', 150)
             height = texture_params.get('height', 1024)
             width = texture_params.get('width', 1024)
-            sequence = texture_params.get('sequence', False)
+            noise = texture_params.get('noise', 0)
             replicas = 1
-            if sequence:
+            if noise > 0:
                 replicas = self.n_frames
-
-            if texture_params.get('noisy_texture'):
                 texture_func = textures.noisy_dot_texture
             else:
                 texture_func = textures.dot_texture
@@ -296,9 +296,9 @@ class BlenderScene(object):
                               n_dots=n_dots,
                               save_file=texture_file,
                               replicas=replicas,
-                              sequence=sequence)
+                              noise=noise)
 
-        if texture_params.get('sequence'):
+        if texture_params.get('noise', -1) > 0:
             texture_file += '_0000.png'
 
         image = self.data.images.load(filepath=texture_file)
@@ -319,7 +319,8 @@ class BlenderScene(object):
         texImage = nodes.new('ShaderNodeTexImage')
         texImage.image = image
 
-        if texture_params.get('sequence'):
+        if texture_params.get('noise', -1) > 0:
+            print('Sequencing Texture')
             texImage.image.source = 'SEQUENCE'
             texImage.image_user.frame_offset = -1
 
@@ -341,7 +342,6 @@ class BlenderScene(object):
 
         if obj.data.materials:
             obj.data.materials[0] = mat
-
             print('overwriting material')
         else:
             obj.data.materials.append(mat)
@@ -402,35 +402,54 @@ class BlenderScene(object):
         light_object.location = location
         light_object.rotation_euler = rotation
 
-    def generate_random_rotation(self, mesh_id=0, save=True):
+    def generate_rotation(self, obj, mesh_id=0, save=True, use_existing=True):
         data = {}
+        n_frames = self.n_frames
         if os.path.exists(self.rotation_data):
             data = np.load(self.rotation_data, allow_pickle=True).item()
 
-        if not data.get(mesh_id):
+        if not data.get(mesh_id) or not use_existing or len(data[mesh_id]['quaternion']) < n_frames:
             data[mesh_id] = {}
 
-        n_frames = self.n_frames
+            data[mesh_id]['quaternion'] =  np.zeros(shape=[n_frames, 4])
+            data[mesh_id]['rotation'] = np.zeros(shape=[n_frames, 3, 3])
+            data[mesh_id]['angle'] =  np.zeros(shape=[n_frames, 1])
+            data[mesh_id]['location'] = np.zeros(shape=(n_frames, 3))
+            data[mesh_id]['axis'] = np.zeros(shape=[n_frames, 3])
 
-        data[mesh_id]['quaternion'] =  np.zeros(shape=[n_frames, 4])
-        data[mesh_id]['rotation'] = np.zeros(shape=[n_frames, 3, 3])
-        data[mesh_id]['angle'] =  np.zeros(shape=[n_frames, 1])
-        data[mesh_id]['axis'] = np.zeros(shape=[n_frames, 3])
+            rotation_axis = np.random.uniform(-1, 1, 3)
+            degrees = np.linspace(0, 360, n_frames)
 
-        rotation_axis = np.random.uniform(-1, 1, 3)
-        degrees = np.linspace(0, 360, n_frames)
+            for frame, degree in enumerate(degrees):
+                q = Quaternion(axis=rotation_axis, degrees=degree)
 
-        for frame, degree in enumerate(degrees):
-            q = Quaternion(axis=rotation_axis, degrees=degree)
+                # Record params
+                data[mesh_id]['quaternion'][frame] = q.elements
+                data[mesh_id]['rotation'][frame] = q.rotation_matrix
+                data[mesh_id]['angle'][frame] = degree
+                data[mesh_id]['axis'][frame] = rotation_axis
 
-            # Record params
-            data[mesh_id]['quaternion'][frame] = q.elements
-            data[mesh_id]['rotation'][frame] = q.rotation_matrix
-            data[mesh_id]['angle'][frame] = degree
-            data[mesh_id]['axis'][frame] = rotation_axis
+            if save:
+                np.save(self.rotation_data, data, allow_pickle=True)
 
-        if save:
-            np.save(self.rotation_data, data, allow_pickle=True)
+        scene = self.scene
+        scene.frame_start = 1
+        scene.frame_end = self.n_frames
+
+        if 'quaternion' in data[mesh_id].keys():
+            rotations = data[mesh_id]['quaternion']
+        else:
+            rotations = data[mesh_id]['rotation']
+
+        print('='*80 + '\n' + str(obj) + '\n' + '='*80 + '\n' )
+        # Set rotation parameters
+        obj.rotation_mode = 'QUATERNION'
+
+        # Add frame for rotation
+        for frame, q in enumerate(rotations):
+            obj.rotation_quaternion = q
+            obj.keyframe_insert('rotation_quaternion', frame=frame + 1)
+            data[mesh_id]['location'] = obj.location
 
         return data
 
@@ -494,39 +513,6 @@ class BlenderScene(object):
             np.save(self.rotation_data, data, allow_pickle=True)
         return data
 
-
-    def animate_rotation(self, obj, rotations, mesh_id=0, use_existing=False):
-        """
-        Takes a mesh and animates a rotation. Generates rotation data
-        if no rotation parameters are passed
-        """
-        # Set scene parameters
-        scene = self.scene
-        scene.frame_start = 1
-        scene.frame_end = self.n_frames
-
-        if rotations is None:
-            if os.path.exists(self.rotation_data) and use_existing:
-                data = np.load(self.rotation_data, allow_pickle=True).item()
-            else:
-                data = self.generate_random_rotation(n_frames=self.n_frames, mesh_id=mesh_id, save=True)
-
-            if 'quaternion' in data.keys():
-                rotations = data[mesh_id]['quaternion']
-            else:
-                rotations = data[mesh_id]['rotation']
-
-        print('='*80 + '\n' + str(obj) + '\n' + '='*80 + '\n' )
-        # Set rotation parameters
-        obj.rotation_mode = 'QUATERNION'
-
-        # Add frame for rotation
-        for frame, q in enumerate(rotations):
-            obj.rotation_quaternion = q
-            obj.keyframe_insert('rotation_quaternion', frame=frame + 1)
-
-        return
-
     def render(self, output_dir='images'):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
@@ -542,29 +528,92 @@ class BlenderScene(object):
         camera_rot = bpy.data.objects['Camera'].rotation_euler
         self.set_light_source('SUN', camera_loc, camera_rot)
 
-        # world_nodes = self.data.worlds['World'].node_tree.nodes
-        # world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
-        # world_nodes['Background'].inputs['Strength'].default_value = 1.5
+        if args.background_style == 'white':
+            world_nodes = self.data.worlds['World'].node_tree.nodes
+            world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+            world_nodes['Background'].inputs['Strength'].default_value = 1.5
+            self.set_background_color(color=(255,255,255,1))
 
         for mesh_id in range(self.n_shapes):
             obj = self.load_mesh(mesh_id=mesh_id)
             texture_file = 'texture.png'
-            self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file)
+            if not args.no_texture_mesh:
+                self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file, overwrite=True)
 
-            rotation_data = self.generate_random_rotation(mesh_id=mesh_id)
-            self.animate_rotation(obj, rotation_data[mesh_id]['quaternion'], mesh_id=mesh_id)
+            self.generate_rotation(obj, mesh_id=mesh_id, use_existing=True)
 
-            trajectory_data = self.generate_trajectory(obj, mesh_id=mesh_id)
-            #self.animate_trajectory(obj, trajectory_data[mesh_id]['trajectory'], mesh_id=mesh_id)
+            if args.trajectory:
+                trajectory_data = self.generate_trajectory(obj, mesh_id=mesh_id)
+                self.generate_trajectory(obj, trajectory_data[mesh_id]['trajectory'], mesh_id=mesh_id)
 
-        # for obj in self.objects:
-        #     obj.select_set(True)
-        # bpy.ops.view3d.camera_to_view_selected()
-
-        self.add_background_plane()
-        #self.set_background_color(color=(255,255,255,1))
+        """
         for obj in self.objects:
             obj.select_set(True)
+        bpy.ops.view3d.camera_to_view_selected()
+        """
+
+        if args.background_style == 'textured':
+            self.add_background_plane(texture_params={'noise': args.background_noise}, overwrite=args.new_background)
+
+        for obj in self.objects:
+            obj.select_set(True)
+        bpy.ops.export_scene.fbx(filepath=self.scene_dir  + '/scene.fbx', use_selection=True)
+        self.render()
+
+        # Clean up scene
+        self.delete_all(obj_type='MESH')
+
+
+    def create_galaxy_scene(self):
+        """
+        All the meshes in the scene rotate in a fixed manner around a center mesh
+        """
+        # Clear any previous meshes
+        self.set_mode('OBJECT')
+        self.delete_all(obj_type='MESH')
+        self.delete_all(obj_type='LIGHT')
+
+        # Set direct and ambient light
+        camera_loc = bpy.data.objects['Camera'].location
+        camera_rot = bpy.data.objects['Camera'].rotation_euler
+        self.set_light_source('SUN', camera_loc, camera_rot)
+
+        if args.background_style == 'white':
+            world_nodes = self.data.worlds['World'].node_tree.nodes
+            world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+            world_nodes['Background'].inputs['Strength'].default_value = 1.5
+            self.set_background_color(color=(255,255,255,1))
+
+        # Add center axis of rotation
+        bpy.ops.object.empty_add(type='PLAIN_AXES', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+        center_axis = bpy.context.active_object
+        self.generate_rotation(center_axis, mesh_id=-1)
+
+        for mesh_id in range(self.n_shapes):
+            obj = self.load_mesh(mesh_id=mesh_id)
+            obj.location = np.random.randint(-5, 5, 3)
+            obj.parent = center_axis
+
+            texture_file = 'texture.png'
+            if not args.no_texture_mesh:
+                self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file)
+
+            # self.generate_rotation(obj, mesh_id=mesh_id, use_existing=True)
+
+            if args.trajectory:
+                trajectory_data = self.generate_trajectory(obj, mesh_id=mesh_id)
+                self.generate_trajectory(obj, trajectory_data[mesh_id]['trajectory'], mesh_id=mesh_id)
+
+        for obj in self.objects:
+            obj.select_set(True)
+        bpy.ops.view3d.camera_to_view_selected()
+
+        if args.background_style == 'textured':
+            self.add_background_plane(texture_params={'noise': args.background_noise}, overwrite=args.new_background)
+
+        for obj in self.objects:
+            obj.select_set(True)
+
         bpy.ops.export_scene.fbx(filepath=self.scene_dir  + '/scene.fbx', use_selection=True)
         self.render()
 
@@ -585,8 +634,8 @@ def main(args):
         logging.info('Processing scene: {}...'.format(scene_dir))
 
         # Create a scene and initialize some basic properties
-        scene = BlenderScene(scene_dir)
-        scene.n_shapes = 2
+        scene = BlenderScene(scene_dir, render_size=args.render_size, device=args.device, n_frames=args.n_frames, engine=args.engine)
+        scene.n_shapes = args.n_shapes
         scene.n_frames = args.n_frames
 
         # Set camera properties for scene
@@ -599,7 +648,13 @@ def main(args):
         scene.y_len = scene.render_frame_boundaries['top_right'][1] - scene.render_frame_boundaries['bottom_right'][1]
 
         # Pass off the rest of the default scene creation
-        scene.create_default_scene()
+        if args.scene_type == 'default':
+            scene.create_default_scene()
+        elif args.scene_type == 'galaxy':
+            scene.create_galaxy_scene()
+        else:
+            raise ValueError(f'Scene type: {args.scene_type} is not supported')
+            return
 
         # Add a render timestamp
         ts = time.time()
@@ -609,26 +664,40 @@ def main(args):
 
 if __name__=='__main__':
     parser = BlenderArgparse.ArgParser()
-    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=867)
     parser.add_argument('--root_dir', type=str, help='Output directory for data', default='scenes')
-    parser.add_argument('--render_size', type=int, help='size of .png file to render', default=1024)
-    parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=100)
-    parser.add_argument('--device', type=str, help='Either "cuda" or "cpu"', default='cuda')
+    parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=867)
+    parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=10)
     parser.add_argument('--start_scene', type=int, help='Scene number to begin rendering from', default=0)
     parser.add_argument('--experiment_name', type=str, help="Experiment name", default="trajectory_LED_two_shapes_v0")
 
+    # Scene settings
+    parser.add_argument('--trajectory', action='store_true', help='whether or not to generate trajectory for shapes')
+    parser.add_argument('--scene_type', type=str, default='default', help='Type of scene (current options: default | galaxy)')
+    parser.add_argument('--n_shapes', type=int, default=1, help='How many meshes to include in scene')
+
     # Texture default settings:
-    min_dot_diam = np.random.randint(5, 15)
-    max_dot_diam = np.random.randint(30, 45)
-    n_dots= np.random.randint(100, 300)
+    min_dot_diam = 100
+    max_dot_diam = 200
+    n_dots= np.random.randint(10, 20)
+    parser.add_argument('--no_texture_mesh', action='store_true', help="Whether or not to add dot texture to meshes")
     parser.add_argument('--min_dot_diam', type=int, help='minimum diamater for dots on texture image', default=min_dot_diam)
     parser.add_argument('--max_dot_diam', type=int, help='maximum diamater for dots on texture image', default=max_dot_diam)
     parser.add_argument('--n_dots', type=int, help='Number of dots on texture image', default=n_dots)
+
+    # Render settings
+    parser.add_argument('--device', type=str, help='Either "cuda" or "cpu"', default='cuda')
+    parser.add_argument('--engine', type=str, help='rendering engine', default='CYCLES')
     parser.add_argument('--output_img_name', type=str, help='Name for output images', default='img')
+    parser.add_argument('--render_size', type=int, help='size of .png file to render', default=512)
     parser.add_argument('--texture_only', action='store_true', help='Will output only textured mesh, and no rendering')
 
+    # Background texture settings
+    parser.add_argument('--background_style', type=str, default='textured', help='Options: white | textured | none')
+    parser.add_argument('--background_noise', type=float, help='amount of noise in textured background plane', default=0.0)
+    parser.add_argument('--new_background', action='store_true', help='Generate new background sequence')
     args = parser.parse_args()
-    # if args.device == 'cuda':
-    #     enable_gpus('CUDA')
+
+    if args.device == 'cuda':
+        enable_gpus('CUDA')
 
     main(args)

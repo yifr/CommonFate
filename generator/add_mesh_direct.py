@@ -7,7 +7,7 @@ import superquadrics
 
 # delete_all('MESH')
 
-x, y, z = superquadrics.superellipsoid([0.2232, 0.3323, 0.2232], [1, 1, 1, 1], 100)
+x, y, z = superquadrics.supertoroids([0.2232, 0.2232], [1, 1, 1, 2], 100)
 faces, verts = superquadrics.get_faces_and_verts(x, y, z)
 
 def add_mesh(name, verts, faces, edges=None, col_name="Collection"):

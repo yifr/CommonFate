@@ -3,8 +3,8 @@ from PIL import Image, ImageDraw
 
 def dot_texture(width=1024, height=1024,
                 min_diameter=10, max_diameter=20,
-                n_dots=900, replicas=1, sequence=False,
-                save_file=None):
+                n_dots=900, replicas=1, noise=-1,
+                save_file='../scenes/scene_999/textures/texture.png'):
     """
     Creates white image with a random number of black dots
 
@@ -21,22 +21,41 @@ def dot_texture(width=1024, height=1024,
         img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
         draw = ImageDraw.Draw(img)
         for _ in range(n_dots):
-            x, y = np.random.randint(max_diameter,width - max_diameter - 10), np.random.randint(max_diameter, height - max_diameter - 10) 
+            x, y = np.random.randint(max_diameter,width - max_diameter - 10), np.random.randint(max_diameter, height - max_diameter - 10)
             diam = np.random.randint(min_diameter, max_diameter)
             draw.ellipse([x,y,x+diam,y+diam], fill='black')
 
         if save_file is not None:
-            if sequence:
+            if noise > 0:
                     img.save(save_file + f'_{i:04d}.png', format='png')
             else:
                 img.save(save_file, format='png')
-            
+
     return img
 
-def noisy_dot_texture(width=1024, height=1024,
-                min_diameter=10, max_diameter=20,
-                n_dots=900, replicas=1, sequence=False,
-                save_file=None):
+def ordered_texture(width=1024, height=1024,
+                    min_diameter=30, max_diameter=50,
+                    n_dots=20, save_file='test.png', **kwargs):
+
+    img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
+    draw = ImageDraw.Draw(img)
+    xs = np.linspace(max_diameter, width + max_diameter, n_dots)
+    ys = np.linspace(max_diameter, width + max_diameter, n_dots)
+    for x in xs:
+        for y in ys:
+            diam = np.random.randint(min_diameter, max_diameter)
+            draw.ellipse([x,y,x+diam,y+diam], fill='black')
+
+    if save_file is not None:
+        img.save(save_file, format='png')
+
+    return img
+
+
+def noisy_dot_texture(width=2048, height=2048,
+                min_diameter=4, max_diameter=8,
+                n_dots=15500, replicas=360, noise=1.0,
+                save_file='../scenes/scene_999/textures/background'):
     """
     Creates white image with a random number of black dots
 
@@ -46,27 +65,30 @@ def noisy_dot_texture(width=1024, height=1024,
         height: int: height of image
         min_diameter: int: min diameter of dots
         max_diameter: int: max diameter of dots
-        n_dot: int: number of dots to create
+        n_dots: int: number of dots to create
         replicas: int: how many images to create
-        sequence: int: whether or not to save a sequence of images (should be true if replicas > 1)
+        noise: float: range that x, y coordinates vary frame to frame
         save_file: str: if provided, will save the image to given path
     """
     x, y = np.random.randint(max_diameter, width - max_diameter, size=n_dots), np.random.randint(max_diameter, height - max_diameter, size=n_dots)
-    diam = np.random.randint(min_diameter, max_diameter, size=n_dots)
-    print(x, y, diam)
+    diam = np.random.randint(min_diameter, max_diameter, size=(n_dots, 2))
+
+    trajectories = np.random.randint(-noise, noise, size=(n_dots, 2))
     for frame in range(replicas):
         print('Generating background ', frame)
         img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
         draw = ImageDraw.Draw(img)
-        new_x, new_y  = x + np.random.randint(x - 5, x + 5, size=x.shape), y + np.random.randint(y - 5, y + 5, size=y.shape)
-        new_diam = diam + np.random.randint(diam - 5, diam + 5, size=diam.shape)
+        x, y  = x + trajectories[:, 0], y + trajectories[:, 1]
         for i in range(n_dots):
-            draw.ellipse([new_x[i], new_y[i], new_x[i] + diam[i], new_y[i] + diam[i]], fill='black')
+            draw.ellipse([x[i], y[i], x[i] + diam[i, 0], y[i] + diam[i, 1]], fill='black')
 
         if save_file is not None:
-            if sequence:
+            if noise > 0:
                     img.save(save_file + f'_{frame:04d}.png', format='png')
             else:
                 img.save(save_file, format='png')
-            
+
     return img
+
+if __name__ == '__main__':
+    ordered_texture()
