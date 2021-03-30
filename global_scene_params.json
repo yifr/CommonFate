@@ -29,7 +29,7 @@
     {
         "camera_location": [7.358891487121582, -6.925789833068848, 0],
         "camera_rotation_euler": [1.570796, 0, 0.785398],
-        "camera_sensor_width": 100,
+        "camera_sensor_width": 36,
         "render_frame_boundaries": {"bottom_left": [-2.91, -3.66, -0.75],
                                     "bottom_right": [3.45, 3.15, -0.75],
                                     "top_right": [2.25, 4.35, 2.70],

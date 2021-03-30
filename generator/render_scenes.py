@@ -279,8 +279,8 @@ class BlenderScene(object):
 
             print('Generating texture')
             min_dot_diam = texture_params.get('min_diam', 50)
-            max_dot_diam = texture_params.get('max_diam', 125)
-            n_dots = texture_params.get('n_dots', 25)
+            max_dot_diam = texture_params.get('max_diam', 100)
+            n_dots = texture_params.get('n_dots', 50)
             height = texture_params.get('height', 1024)
             width = texture_params.get('width', 1024)
             noise = texture_params.get('noise', 0.0)
@@ -573,7 +573,7 @@ class BlenderScene(object):
         for obj in self.objects:
             obj.select_set(True)
 
-        bpy.ops.wm.save_as_mainfile(filepath=self.scene_dir  + '/scene.blend')
+        bpy.ops.wm.save_as_mainfile(filepath=self.scene_dir  + '/scene.blend', check_existing=False)
         self.render()
 
         # Clean up scene
@@ -584,7 +584,7 @@ def main(args):
         os.mkdir(args.root_dir)
         print('Created root directory: ', args.root_dir)
 
-    with open(args.root_dir + '/../global_scene_params.json', 'r') as f:
+    with open(args.global_scene_params, 'r') as f:
         global_scene_params = json.load(f)
         global_scene_params = global_scene_params[args.experiment_name]
 
@@ -593,7 +593,7 @@ def main(args):
         logging.info('Processing scene: {}...'.format(scene_dir))
 
         # Create a scene and initialize some basic properties
-        scene = BlenderScene(scene_dir, render_size=args.render_size, device=args.device, n_frames=args.n_frames, engine=args.engine)
+        scene = BlenderScene(scene_dir, render_size=args.render_size, device=args.device, n_frames=args.n_frames, engine=args.engine, samples=args.samples)
         scene.n_shapes = args.n_shapes
         scene.n_frames = args.n_frames
 
@@ -617,6 +617,8 @@ def main(args):
 if __name__=='__main__':
     parser = BlenderArgparse.ArgParser()
     parser.add_argument('--root_dir', type=str, help='Output directory for data', default='scenes')
+    parser.add_argument('--global_scene_params', type=str, help='Path to global scene parameters json file',
+                        default='/home/yyf/CommonFate/global_scene_params.json')
     parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=867)
     parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=10)
     parser.add_argument('--start_scene', type=int, help='Scene number to begin rendering from', default=0)
@@ -626,7 +628,7 @@ if __name__=='__main__':
     parser.add_argument('--trajectory', action='store_true', help='whether or not to generate trajectory for shapes')
     parser.add_argument('--scene_type', type=str, default='default', help='Type of scene (current options: default | galaxy)')
     parser.add_argument('--n_shapes', type=int, default=1, help='How many meshes to include in scene')
-
+    
     # Texture default settings:
     min_dot_diam = 100
     max_dot_diam = 200
@@ -643,14 +645,12 @@ if __name__=='__main__':
     parser.add_argument('--output_img_name', type=str, help='Name for output images', default='img')
     parser.add_argument('--render_size', type=int, help='size of .png file to render', default=512)
     parser.add_argument('--texture_only', action='store_true', help='Will output only textured mesh, and no rendering')
+    parser.add_argument('--samples', type=int, default=256, help="Samples to use in rendering")
 
     # Background texture settings
     parser.add_argument('--background_style', type=str, default='textured', help='Options: white | textured | none')
     parser.add_argument('--background_noise', type=float, help='amount of noise in textured background plane', default=0.0)
     parser.add_argument('--new_background', action='store_true', help='Generate new background sequence')
     args = parser.parse_args()
-
-    if args.device == 'cuda':
-        enable_gpus('CUDA')
 
     main(args)
