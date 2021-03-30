@@ -47,8 +47,11 @@ def generate(args):
                     raise ValueError(f'Shape type: {args.shape_type} is not currently supported. Options are: "superellipsoid" | "supertoroid" | "mixed""')
 
                 fname = os.path.join(scene_dir, f'mesh_{m}.obj')
-                superquadrics.save_obj(fname, x, y, z)
-
+                if curr_shape == 'superellipsoid':
+                    superquadrics.save_obj_not_overlap(fname, x, y, z)
+                else:
+                    superquadrics.save_obj(fname, x, y, z)
+                    
                 mesh_data[f'mesh_{m}'] = {'exponents': epsilons, 'scaling': list(scaling), 'type': curr_shape}
 
             with open(os.path.join(scene_dir, 'params.json'), 'w') as f:

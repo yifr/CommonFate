@@ -94,10 +94,7 @@ def get_faces_and_verts(x, y, z, use_existing_faces=True):
     return faces, verts
 
 def sgn(x):
-    y = np.ones(x.shape)
-    y[x == 0] = 0
-    y[x < 0] *= -1
-    return y
+    return np.sign(x)
 
 def signed_sin(w, m):
     return sgn(np.sin(w)) * np.power(np.abs(np.sin(w)), m)
@@ -111,115 +108,39 @@ def signed_tan(w, m):
 def signed_sec(w, m):
     return sgn(np.cos(w)) * np.power(np.abs(1 / np.cos(w)), m)
 
-def get_eta_and_w(n, etamax = np.pi / 2, wmax = np.pi):
-    etamin = -etamax
-    wmin = -wmax
-    dw = (wmax - wmin) / n
-    # When the range = 2PI, one point will be overlapped
-    x = np.linspace(0, n, n + 1)
-
-    if etamax == np.pi / 2:
-        n = n - 1
-    y = np.linspace(0, n, n + 1)
-    deta = (etamax - etamin) / n
-
-    yv, xv = np.meshgrid(y, x)
-    eta = etamin + yv * deta
-    w = wmin + xv * dw
-    return eta, w
-
 def superellipsoid(epsilon, a, n):
     """
     We follow https://en.wikipedia.org/wiki/Superquadrics, (code there should be superellipsoid)
     a is a 3-element vector: A, B, C
     epsilon is a 2-element vector: 2/r, 2/s
     """
-    eta, w = get_eta_and_w(n)
+
+    eta = np.linspace(-np.pi/2, np.pi/2, n)
+    w = np.linspace(-np.pi, np.pi, n)
+    eta, w = np.meshgrid(eta, w)
+
     x = a[0] * signed_cos(eta, epsilon[0]) * signed_cos(w, epsilon[1])
     y = a[1] * signed_cos(eta, epsilon[0]) * signed_sin(w, epsilon[1])
     z = a[2] * signed_sin(eta, epsilon[0])
     return x, y, z
 
-def superhyperboloid_one_piece(epsilon, a, n):
-    """
-    https://cse.buffalo.edu/~jryde/cse673/files/superquadrics.pdf EQ 2.20
-    """
-    eta, w = get_eta_and_w(n)
-    x = a[0] * signed_sec(eta, epsilon[0]) * signed_cos(w, epsilon[0])
-    y = a[1] * signed_sec(eta, epsilon[1]) * signed_sin(w, epsilon[1])
-    z = a[2] * signed_tan(eta, epsilon[0])
-    return x, y, z
 
 def supertoroid(epsilon, a, n):
     """
     https://cse.buffalo.edu/~jryde/cse673/files/superquadrics.pdf EQ 2.22
     """
-    eta, w = get_eta_and_w(n, etamax = np.pi, wmax = np.pi)
+    eta = np.linspace(-np.pi, np.pi, n)
+    w = np.linspace(-np.pi, np.pi, n)
+    eta, w = np.meshgrid(eta, w)
+
     x = a[0] * (a[3] + signed_cos(eta, epsilon[0])) * signed_cos(w, epsilon[1])
     y = a[1] * (a[3] + signed_cos(eta, epsilon[0])) * signed_sin(w, epsilon[1])
     z = a[2] * signed_sin(eta, epsilon[0])
     return x, y, z
 
-def superellipsoid_taperingz_blendingx(epsilon, a, a0, t, b, n):
-    """
-    superellipsoid with tapering freedom on z axis, and blending freedom on x axis
-    Ref: Shape and nonrigid motion estimation through physics-based synthesis
-    epsilon:2d, a:3d, a0:1d, t:2d, b:3d
-    tapering: -1 <= t <= 1 (tapering params in x and y)
-    bending: -1 <= b[1] <= 1, 0 <= b[2] <= 1 (b[0]: magnitude; b[1]: location on z axis where bending is applied,
-                                              b[2]: the region of influence)
-    """
-    eta, w = get_eta_and_w(n)
-    x = a[0] * signed_cos(eta, epsilon[0]) * signed_cos(w, epsilon[1])
-    y = a[1] * signed_cos(eta, epsilon[0]) * signed_sin(w, epsilon[1])
-    z = a[2] * signed_sin(eta, epsilon[0])
-    x, y, z = a0 * x, a0 * y, a0 * z
-    x_transformed = (t[0] * z / a0 * a[2] + 1) * x + b[0] * np.cos((z + b[1]) / a0 * a[2] * np.pi * b[2])
-    y_transformed = (t[1] * z / a0 * a[2] + 1) * y
-    z_transformed = z
-    return x_transformed, y_transformed, z_transformed
-
-
 
 if __name__ == '__main__':
     path_save = "temp.obj"
-    n = 64
-
-    a = [1, 1, 1]
-    r = .5
-    s = .5
-    t = .5
-    epsilon = [2/r, 2/s, 2/t]
-    x, y, z = superellipsoid(epsilon, a, n)
-    save_obj_not_overlap(path_save, x, y, z)
-    # save_obj(path_save, x, y, z)
-    save_pts("./temp.pts", x, y, z)
-
-    exit(0)
-
-    a = [1, 1, 1]
-    r = 2
-    s = 2
-    t = 2
-    epsilon = [2/r, 2/s, 2/t]
-    # x, y, z = superhyperboloid_one_piece(epsilon, a, n = 80)
-    # We add a constrain to avoid bad visualization (for superhyperboloid_one_piece)
-    # save_obj(path_save, x, y, z, threshold = 100)
-
-    a = [2, 2, 2, 2]
-    r = 2
-    s = 2
-    epsilon = [2/r, 2/s]
-    # x, y, z = supertoroids(epsilon, a, n = 20)
-    # save_obj(path_save, x, y, z)
-
-    path_save = "temp_cool.obj"
-    a = [1, 1, 1]
-    r = 2
-    s = 2
-    epsilon = [2/r, 2/s]
-    a0 = 1
-    t = [0.5, 0.3]
-    b = [0.5, 0.2, 0.8]
-    x, y, z = superellipsoid_taperingz_blendingx(epsilon, a, a0, t, b, n)
-    save_obj(path_save, x, y, z)
+    
+    x,y,z, = superellipsoid([3.74, 0.05], [1,1,1,2], 100)
+    save_obj_not_overlap(path_save, x,y,z)

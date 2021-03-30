@@ -79,6 +79,7 @@ def noisy_dot_texture(width=2048, height=2048,
         img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
         draw = ImageDraw.Draw(img)
         x, y  = x + trajectories[:, 0], y + trajectories[:, 1]
+
         for i in range(n_dots):
             draw.ellipse([x[i], y[i], x[i] + diam[i, 0], y[i] + diam[i, 1]], fill='black')
 
