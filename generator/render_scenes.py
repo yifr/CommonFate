@@ -112,7 +112,7 @@ class BlenderScene(object):
         self.context = bpy.context
         self.n_frames = n_frames
         self.shape_params = shape_params
-        self.renderer = RenderEngine(self.scene, device=device, engine=engine, 
+        self.renderer = RenderEngine(self.scene, device=device, engine=engine,
                                     render_size=render_size, samples=samples)
         self.rotation_data = os.path.join(self.scene_dir, 'data.npy')
         self.render_frame_boundaries = None
@@ -270,6 +270,7 @@ class BlenderScene(object):
         print(f'Adding {material_name} material to ', obj)
 
         self.set_mode('EDIT')
+
         texture_file = os.path.join(self.scene_dir, 'textures', texture_file)
 
         # Export new random texture if it doesn't exist
@@ -277,12 +278,12 @@ class BlenderScene(object):
             os.makedirs(os.path.join(self.scene_dir, 'textures'), exist_ok=True)
 
             print('Generating texture')
-            min_dot_diam = texture_params.get('min_diam', 25)
-            max_dot_diam = texture_params.get('max_diam', 100)
-            n_dots = texture_params.get('n_dots', 150)
+            min_dot_diam = texture_params.get('min_diam', 50)
+            max_dot_diam = texture_params.get('max_diam', 125)
+            n_dots = texture_params.get('n_dots', 25)
             height = texture_params.get('height', 1024)
             width = texture_params.get('width', 1024)
-            noise = texture_params.get('noise', 0)
+            noise = texture_params.get('noise', 0.0)
             replicas = 1
             if noise > 0:
                 replicas = self.n_frames
@@ -302,8 +303,12 @@ class BlenderScene(object):
             texture_file += '_0000.png'
 
         image = self.data.images.load(filepath=texture_file)
+        print(f'Adding {image} texture to mesh')
         if unwrap:
+            status = bpy.ops.uv.unwrap()
+            print('Unwrapped status:' , status)
             bpy.ops.uv.cube_project(cube_size=mesh_size)
+            bpy.ops.uv.unwrap()
 
         # Create new texture slot
         mat = self.data.materials.new(name=material_name)
@@ -517,7 +522,7 @@ class BlenderScene(object):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
 
-    def create_default_scene(self):
+    def create_default_scene(self, args):
         # Clear any previous meshes
         self.set_mode('OBJECT')
         self.delete_all(obj_type='MESH')
@@ -534,11 +539,21 @@ class BlenderScene(object):
             world_nodes['Background'].inputs['Strength'].default_value = 1.5
             self.set_background_color(color=(255,255,255,1))
 
+        if args.scene_type == 'galaxy':
+            bpy.ops.object.empty_add(type='PLAIN_AXES', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+            center_axis = bpy.context.active_object
+            self.generate_rotation(center_axis, mesh_id=-1)
+
         for mesh_id in range(self.n_shapes):
             obj = self.load_mesh(mesh_id=mesh_id)
-            texture_file = 'texture.png'
+            if args.scene_type == 'galaxy':
+                obj.location = np.random.randint(-5, 5, 3)
+                obj.parent = center_axis
+
+            texture_file = 'texture.png' if args.texture_noise <= 0 else 'texture' 
             if not args.no_texture_mesh:
-                self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file, overwrite=True)
+                self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file, overwrite=True,
+                                  texture_params={'noise': args.texture_noise})
 
             self.generate_rotation(obj, mesh_id=mesh_id, use_existing=True)
 
@@ -557,64 +572,8 @@ class BlenderScene(object):
 
         for obj in self.objects:
             obj.select_set(True)
-        bpy.ops.export_scene.fbx(filepath=self.scene_dir  + '/scene.fbx', use_selection=True)
-        self.render()
 
-        # Clean up scene
-        self.delete_all(obj_type='MESH')
-
-
-    def create_galaxy_scene(self):
-        """
-        All the meshes in the scene rotate in a fixed manner around a center mesh
-        """
-        # Clear any previous meshes
-        self.set_mode('OBJECT')
-        self.delete_all(obj_type='MESH')
-        self.delete_all(obj_type='LIGHT')
-
-        # Set direct and ambient light
-        camera_loc = bpy.data.objects['Camera'].location
-        camera_rot = bpy.data.objects['Camera'].rotation_euler
-        self.set_light_source('SUN', camera_loc, camera_rot)
-
-        if args.background_style == 'white':
-            world_nodes = self.data.worlds['World'].node_tree.nodes
-            world_nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
-            world_nodes['Background'].inputs['Strength'].default_value = 1.5
-            self.set_background_color(color=(255,255,255,1))
-
-        # Add center axis of rotation
-        bpy.ops.object.empty_add(type='PLAIN_AXES', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
-        center_axis = bpy.context.active_object
-        self.generate_rotation(center_axis, mesh_id=-1)
-
-        for mesh_id in range(self.n_shapes):
-            obj = self.load_mesh(mesh_id=mesh_id)
-            obj.location = np.random.randint(-5, 5, 3)
-            obj.parent = center_axis
-
-            texture_file = 'texture.png'
-            if not args.no_texture_mesh:
-                self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file)
-
-            # self.generate_rotation(obj, mesh_id=mesh_id, use_existing=True)
-
-            if args.trajectory:
-                trajectory_data = self.generate_trajectory(obj, mesh_id=mesh_id)
-                self.generate_trajectory(obj, trajectory_data[mesh_id]['trajectory'], mesh_id=mesh_id)
-
-        for obj in self.objects:
-            obj.select_set(True)
-        bpy.ops.view3d.camera_to_view_selected()
-
-        if args.background_style == 'textured':
-            self.add_background_plane(texture_params={'noise': args.background_noise}, overwrite=args.new_background)
-
-        for obj in self.objects:
-            obj.select_set(True)
-
-        bpy.ops.export_scene.fbx(filepath=self.scene_dir  + '/scene.fbx', use_selection=True)
+        bpy.ops.wm.save_as_mainfile(filepath=self.scene_dir  + '/scene.blend')
         self.render()
 
         # Clean up scene
@@ -647,15 +606,8 @@ def main(args):
         scene.x_len = scene.render_frame_boundaries['top_right'][0] - scene.render_frame_boundaries['top_left'][0]
         scene.y_len = scene.render_frame_boundaries['top_right'][1] - scene.render_frame_boundaries['bottom_right'][1]
 
-        # Pass off the rest of the default scene creation
-        if args.scene_type == 'default':
-            scene.create_default_scene()
-        elif args.scene_type == 'galaxy':
-            scene.create_galaxy_scene()
-        else:
-            raise ValueError(f'Scene type: {args.scene_type} is not supported')
-            return
-
+        scene.create_default_scene(args)
+        
         # Add a render timestamp
         ts = time.time()
         fts = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
@@ -683,6 +635,7 @@ if __name__=='__main__':
     parser.add_argument('--min_dot_diam', type=int, help='minimum diamater for dots on texture image', default=min_dot_diam)
     parser.add_argument('--max_dot_diam', type=int, help='maximum diamater for dots on texture image', default=max_dot_diam)
     parser.add_argument('--n_dots', type=int, help='Number of dots on texture image', default=n_dots)
+    parser.add_argument('--texture_noise', type=float, help='Generates noisy texture sequence', default=0.0)
 
     # Render settings
     parser.add_argument('--device', type=str, help='Either "cuda" or "cpu"', default='cuda')
