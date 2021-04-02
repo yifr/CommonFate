@@ -159,21 +159,21 @@ class BlenderScene(object):
                 self.context.view_layer.objects.active = obj
                 bpy.ops.object.mode_set(mode=mode)
 
-    def _generate_mesh(self, shape_params=None):
+    def _generate_mesh(self, shape_params=None, save=False):
         """
         shape_params: json dict with keys: 'scaling' and 'exponents'
         Returns points for a superquadric given some shape parameters
         """
         if self.get_shape_params() is None and shape_params is None:
-            exponents = list(np.random.randint(0, 4, 3))
-            exponents[2] = exponents[0]
-            scaling = [1, 1, 1, 1]
+            exponents = list(np.random.uniform(0, 4, 2))
+            scaling = [1, 1, 1, 2]
             shape_params = {'mesh_0': {'scaling': scaling, 'exponents': exponents}}
             self.shape_params = shape_params
             # Save parameters
-            self.shape_param_file = os.path.join(self.scene_dir, 'params.json')
-            with open(self.shape_param_file, 'w') as f:
-                json.dump(self.shape_params, f)
+            if save:
+                self.shape_param_file = os.path.join(self.scene_dir, 'params.json')
+                with open(self.shape_param_file, 'w') as f:
+                     json.dump(self.shape_params, f)
 
         n_points = 100
         x, y, z = superquadrics.superellipsoid(shape_params['mesh_0']['exponents'], shape_params['mesh_0']['scaling'], n_points)
@@ -187,7 +187,7 @@ class BlenderScene(object):
         if shape_params:
             self.shape_params = shape_params
 
-        x, y, z = self._generate_mesh(shape_params)
+        x, y, z = self._generate_mesh(shape_params=shape_params)
         faces, verts = superquadrics.get_faces_and_verts(x, y, z)
         edges = []
 
@@ -206,6 +206,7 @@ class BlenderScene(object):
         mesh_file = os.path.join(self.scene_dir, f'mesh_{mesh_id}.obj')
 
         if not os.path.exists(mesh_file):
+            print('No Mesh found! Generating new shape: ')
             x, y, z = self._generate_mesh()
             superquadrics.save_obj_not_overlap(mesh_file, x, y, z)
 
@@ -413,7 +414,10 @@ class BlenderScene(object):
         if os.path.exists(self.rotation_data):
             data = np.load(self.rotation_data, allow_pickle=True).item()
 
-        if not data.get(mesh_id) or not use_existing or len(data[mesh_id]['quaternion']) < n_frames:
+        if not data.get(mesh_id) \
+        or not use_existing \
+        or len(data[mesh_id]['quaternion']) < n_frames:
+            print('Generating new rotation')
             data[mesh_id] = {}
 
             data[mesh_id]['quaternion'] =  np.zeros(shape=[n_frames, 4])
@@ -440,7 +444,7 @@ class BlenderScene(object):
         scene = self.scene
         scene.frame_start = 1
         scene.frame_end = self.n_frames
-
+        
         if 'quaternion' in data[mesh_id].keys():
             rotations = data[mesh_id]['quaternion']
         else:

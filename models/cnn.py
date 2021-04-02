@@ -11,10 +11,19 @@ class ShapeNet(nn.Module):
         super(ShapeNet, self).__init__()
         self.img_size = img_size
         self.out_size = out_size
-        self.feature_extractor = SimpleCNN(img_size=img_size, out_size=20)
-        self.fc1 = nn.Linear(20, 10)
-        self.fc2 = nn.Linear(10, 5)
-
+        self.feature_extractor = nn.Sequential(
+                        nn.Conv2d(1, 20, kernel_size=3),
+                        nn.MaxPool2d(2),
+                        nn.ReLU(),
+                        nn.Conv2d(20, 40, kernel_size=3),
+                        nn.MaxPool2d(2),
+                        nn.ReLU()
+                        )
+        
+        conv_out = int(img_size / 4 - 2)
+        self.fc1 = nn.Linear(40 * conv_out * conv_out, 100)
+        self.fc2 = nn.Linear(100, 20)
+        self.fc3 = nn.Linear(20, out_size)
         self._transforms = T.Compose([T.Resize(img_size),
                                       T.ToTensor()]
                                     )
@@ -23,11 +32,16 @@ class ShapeNet(nn.Module):
 
     def forward(self, x):
         x = self.feature_extractor(x)
+        x = x.view(x.shape[0], -1)
         x = torch.mean(x, dim=0)
         
         x = self.fc1(x)
         x = F.relu(x)
+       
         x = self.fc2(x)
+        x = F.relu(x)
+        
+        x = self.fc3(x)
         x = torch.sigmoid(x) * 4
         
         return x
