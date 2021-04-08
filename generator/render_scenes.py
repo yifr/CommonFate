@@ -443,7 +443,7 @@ class BlenderScene(object):
         scene = self.scene
         scene.frame_start = 1
         scene.frame_end = self.n_frames
-
+        
         if 'quaternion' in data[mesh_id].keys():
             rotations = data[mesh_id]['quaternion']
         else:
