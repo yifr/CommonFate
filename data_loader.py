@@ -28,11 +28,10 @@ class Scene(Dataset):
 
         # Load rotation parameters
         scene_data = os.path.join(self.scene_dir, 'data.npy')
-        data_dict = np.load(scene_data, allow_pickle=True).item()
+        data_dict = np.load(scene_data, allow_pickle=True).item()[0]
 
         self.shape_params = self.get_exponents()
-        self.rotations = data_dict['rotation']
-        self.translation = data_dict['translation']
+        self.rotations = data_dict['quaternion']
         self.angle = data_dict['angle']
         self.axis = data_dict['axis']
         self.params = self.get_exponents()
@@ -61,11 +60,10 @@ class Scene(Dataset):
         img = self.transforms(img_raw).to(self.device)
 
         rotation = torch.tensor(self.rotations[idx], dtype=torch.float).to(self.device)
-        translation = torch.tensor(self.translation[idx]).to(self.device)
         angle = torch.tensor(self.angle[idx]).to(self.device)
         axis = torch.tensor(self.axis[idx]).to(self.device)
 
-        return {'frame': img, 'rotation': rotation, 'translation': translation,
+        return {'frame': img, 'rotation': rotation, 
                 'angle': angle, 'axis': axis, 'shape_params': self.params}
 
     def get_exponents(self):
@@ -77,10 +75,8 @@ class Scene(Dataset):
         param_file = os.path.join(self.scene_dir, 'params.json')
         with open(param_file, 'r') as f:
             param_data = json.load(f)
-        exponents = torch.tensor(param_data['exponents'][:-1], dtype=torch.float32)
-        scaling = torch.tensor(param_data['scaling'][:-1], dtype=torch.float32)    # currently we only need the scaling parameters for x, y, z. The fourth parameter is for inner toroid width
-        params = torch.cat((exponents, scaling), axis=0).to(self.device)
-        return params
+        exponents = torch.tensor(param_data['mesh_0']['exponents'], dtype=torch.float32, device=self.device)
+        return exponents
 
 class SceneLoader():
     """
@@ -95,7 +91,7 @@ class SceneLoader():
     """
 
     def __init__(self, root_dir, transforms=None, device='cuda',
-                 n_scenes=0, n_frames=100, img_size=128,
+                 n_scenes=0, n_frames=20, img_size=256,
                  batch_size=100, train_size=0.8, as_rgb=False, seed=42):
         """
         Args:

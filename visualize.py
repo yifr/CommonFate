@@ -25,7 +25,7 @@ from generator import BlenderArgparse
 from generator.render_scenes import BlenderScene
 from generator.textures import dot_texture
 
-ROOT_SCENE_DIR = 'scenes/'
+ROOT_SCENE_DIR = 'scenes/data'
 
 def ortho6d_to_quaternion(ortho6d):
     loss = cnn.Loss()
@@ -43,16 +43,15 @@ def ortho6d_to_quaternion(ortho6d):
 def render_ground_truth(scene_num):
     # Initialize scene
     scene_dir = os.path.join(ROOT_SCENE_DIR, f'scene_{scene_num:03d}')
-    scene = BlenderScene(scene_dir)
+    scene = BlenderScene(scene_dir, n_frames=20)
+    scene.set_light_source('SUN', [7.35, -6.9, 0], [1.5707, 0, 0.7853])
     obj = scene.load_mesh()
 
     # Retrieve ground truth data
     gt_data = np.load(os.path.join(scene_dir, 'data.npy'), allow_pickle=True).item()
-    rotation_key = 'quaternion' if 'quaternion' in gt_data.keys() else 'rotation'
-    rotation = gt_data[rotation_key]
 
     # Animate and render scene
-    scene.rotate(obj, rotation)
+    scene.generate_rotation(obj)
     scene.render(output_dir='ground_truth')
 
 def render_from_predictions(models={'rotation': None}, scene_num=0, textured=False, device='cpu'):
@@ -66,7 +65,7 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
         textured: :bool: whether or not to render texture or just underlying mesh
     """
     scene_dir = os.path.join(ROOT_SCENE_DIR, f'scene_{scene_num:03d}')
-    scene = BlenderScene(scene_dir)
+    scene = BlenderScene(scene_dir, n_frames=20)
     print(f'Initialized scene for {scene_dir}. Exporting predictions...')
 
     predictions = load_predictions(models, scene_num, device=device)
@@ -74,16 +73,13 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
 
     # If we're visualizing shape predictions, create new mesh
     obj = None
+    print('Loading shape...')
     if 'shape_params' in pred_types:
-        shape_pred = predictions['shape_params'].detach().cpu().numpy()
-        exponents = list(shape_pred[:2])
-        exponents.append(exponents[0])
-        scaling = list(shape_pred[2:])
+        shape_pred = predictions['shape_params']
 
-        shape_params = {'exponents': exponents, 'scaling': scaling}
+        shape_params = {'mesh_0': {'exponents': shape_pred, 'scaling': [1,1,1,2]}}
         print('Predicted shape: ', shape_pred)
         obj = scene.create_mesh(shape_params=shape_params)
-        print('Creating new object')
     else:
         print('Loading mesh')
         obj = scene.load_mesh()
@@ -96,9 +92,9 @@ def render_from_predictions(models={'rotation': None}, scene_num=0, textured=Fal
         quaternions = ortho6d_to_quaternion(predictions['rotation'])
     else:
         data = np.load(os.path.join(scene_dir, 'data.npy'), allow_pickle=True).item()
-        quaternions = data['quaternion']
-    print(quaternions)
-    scene.rotate(obj, quaternions)
+        quaternions = data[0]['quaternion']
+    
+    scene.generate_rotation(obj)
     prediction_dir = os.path.join(scene_dir, 'predictions')
     if not os.path.exists(prediction_dir):
         os.mkdir(prediction_dir)
@@ -172,25 +168,27 @@ def create_predictions(model=None, device='cpu', scene_num=0, pred_type='rotatio
     #     predictions = torch.mean(predictions, dim=0)
     #     predictions = torch.sigmoid(predictions) * 4
 
-    predicted = predictions.detach().cpu().numpy()
-
+    predictions = predictions.detach().cpu().numpy()
     if save:
         save_file = os.path.join(ROOT_SCENE_DIR, 'scene_%03d' % scene_num, 'predictions.npy')
         if os.path.exists(save_file):
             save_data = np.load(save_file, allow_pickle=True).item()
-            save_data[pred_type] = predictions
+            if not save_data.get(0):
+                save_data[0] = {}
+            save_data[0][pred_type] = predictions
         else:
-            save_data = {pred_type: predictions}
+            save_data = {0: {}}
+            save_data[0] = {pred_type: predictions}
 
         np.save(save_file, save_data)
 
     return predictions
 
 
-def stitch_prediction_video(scene_num, outfile, n_frames=100):
+def stitch_prediction_video(scene_num, outfile, n_frames=20):
     scene_dir = os.path.join(ROOT_SCENE_DIR, f'scene_{scene_num:03d}')
 
-    fig, (gt_fig, stimuli_fig, predicted_fig) = plt.subplots(1, 3, figsize=(20, 20))
+    fig, (gt_fig, stimuli_fig, predicted_fig) = plt.subplots(1, 3, figsize=(18, 12))
 
     gt_fig.set_title('Ground Truth')
     stimuli_fig.set_title('Stimuli')
@@ -226,16 +224,22 @@ def stitch_prediction_video(scene_num, outfile, n_frames=100):
     ani = animation.ArtistAnimation(fig, frames)
     # FFMpegWriter = animation.writers['ffmpeg']
     # writer = FFMpegWriter(fps=25)
-    writer = animation.PillowWriter(fps=25)
+    writer = animation.PillowWriter(fps=10)
     ani.save(outfile, writer=writer)
     print('Done.')
 
 def main():
     device = 'cuda'
-    viz_types = []# ['predictions', 'ground_truth']
-    scenes = [25, 100, 400, 500, 670, 660]
+    viz_types = ['predictions', 'ground_truth']
 
-    model = cnn.ShapeNet(out_size=5).to(device)
+    np.random.seed(42)
+    n_train = 800
+    n_scenes = 1000
+    train_idxs = np.random.choice(range(n_scenes), n_train, replace=False)
+    test_idxs = np.delete(np.arange(0, n_scenes, 1), train_idxs) # remaining indexes used for test
+    scenes = test_idxs[:10] #[25, 100, 400, 500, 670, 660]
+
+    model = cnn.ShapeNet(out_size=2).to(device)
 
     model_path = os.path.join(os.getcwd(), 'saved_models/shapenet_mean_ftvec.pt')
     model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
@@ -250,7 +254,7 @@ def main():
             print('Rendering Ground truth frames')
             render_ground_truth(scene_num=scene_num)
 
-        stitch_prediction_video(scene_num, outfile=f'media/shapenet_mean_ftvec/scene_{scene_num}_predictions.gif')
+        stitch_prediction_video(scene_num, outfile=f'media/shapenet_v4/scene_{scene_num}_predictions.gif')
 
 if __name__=='__main__':
     main()

@@ -159,21 +159,21 @@ class BlenderScene(object):
                 self.context.view_layer.objects.active = obj
                 bpy.ops.object.mode_set(mode=mode)
 
-    def _generate_mesh(self, shape_params=None):
+    def _generate_mesh(self, shape_params=None, save=False):
         """
         shape_params: json dict with keys: 'scaling' and 'exponents'
         Returns points for a superquadric given some shape parameters
         """
         if self.get_shape_params() is None and shape_params is None:
-            exponents = list(np.random.randint(0, 4, 3))
-            exponents[2] = exponents[0]
-            scaling = [1, 1, 1, 1]
+            exponents = list(np.random.uniform(0, 4, 2))
+            scaling = [1, 1, 1, 2]
             shape_params = {'mesh_0': {'scaling': scaling, 'exponents': exponents}}
             self.shape_params = shape_params
             # Save parameters
-            self.shape_param_file = os.path.join(self.scene_dir, 'params.json')
-            with open(self.shape_param_file, 'w') as f:
-                json.dump(self.shape_params, f)
+            if save:
+                self.shape_param_file = os.path.join(self.scene_dir, 'params.json')
+                with open(self.shape_param_file, 'w') as f:
+                     json.dump(self.shape_params, f)
 
         n_points = 100
         x, y, z = superquadrics.superellipsoid(shape_params['mesh_0']['exponents'], shape_params['mesh_0']['scaling'], n_points)
@@ -187,7 +187,7 @@ class BlenderScene(object):
         if shape_params:
             self.shape_params = shape_params
 
-        x, y, z = self._generate_mesh(shape_params)
+        x, y, z = self._generate_mesh(shape_params=shape_params)
         faces, verts = superquadrics.get_faces_and_verts(x, y, z)
         edges = []
 
@@ -206,6 +206,7 @@ class BlenderScene(object):
         mesh_file = os.path.join(self.scene_dir, f'mesh_{mesh_id}.obj')
 
         if not os.path.exists(mesh_file):
+            print('No Mesh found! Generating new shape: ')
             x, y, z = self._generate_mesh()
             superquadrics.save_obj_not_overlap(mesh_file, x, y, z)
 
@@ -213,7 +214,7 @@ class BlenderScene(object):
         new_obj = list(set(bpy.context.scene.objects) - old_objs)[0]
         return new_obj
 
-    def add_background_plane(self, texture_params={}, overwrite=False):
+    def add_background_plane(self, texture_params={}, overwrite=True):
         """
         Adds plane to background and adds image texture that can be modified during animation.
         The texture material is added with the name "Background" for later access.
@@ -245,7 +246,7 @@ class BlenderScene(object):
         texture = {}
         texture['min_diam'] = texture_params.get('min_diam', 5)
         texture['max_diam'] = texture_params.get('max_diam', 10)
-        texture['n_dots'] = texture_params.get('max_diam', 7500)
+        texture['n_dots'] = texture_params.get('n_dots', 15000)
         texture['height'] = texture_params.get('height', 2048)
         texture['width'] = texture_params.get('width', 2048)
         texture['noise'] = texture_params.get('noise', 5.0)
@@ -279,8 +280,8 @@ class BlenderScene(object):
 
             print('Generating texture')
             min_dot_diam = texture_params.get('min_diam', 50)
-            max_dot_diam = texture_params.get('max_diam', 100)
-            n_dots = texture_params.get('n_dots', 50)
+            max_dot_diam = texture_params.get('max_diam', 75)
+            n_dots = texture_params.get('n_dots', 40)
             height = texture_params.get('height', 1024)
             width = texture_params.get('width', 1024)
             noise = texture_params.get('noise', 0.0)
@@ -307,8 +308,7 @@ class BlenderScene(object):
         if unwrap:
             status = bpy.ops.uv.unwrap()
             print('Unwrapped status:' , status)
-            bpy.ops.uv.cube_project(cube_size=mesh_size)
-            bpy.ops.uv.unwrap()
+            bpy.ops.uv.cube_project(cube_size=mesh_size, clip_to_bounds=True, scale_to_bounds=True)
 
         # Create new texture slot
         mat = self.data.materials.new(name=material_name)
@@ -413,7 +413,10 @@ class BlenderScene(object):
         if os.path.exists(self.rotation_data):
             data = np.load(self.rotation_data, allow_pickle=True).item()
 
-        if not data.get(mesh_id) or not use_existing or len(data[mesh_id]['quaternion']) < n_frames:
+        if not data.get(mesh_id) \
+        or not use_existing \
+        or len(data[mesh_id]['quaternion']) < n_frames:
+            print('Generating new rotation')
             data[mesh_id] = {}
 
             data[mesh_id]['quaternion'] =  np.zeros(shape=[n_frames, 4])
@@ -550,7 +553,7 @@ class BlenderScene(object):
                 obj.location = np.random.randint(-5, 5, 3)
                 obj.parent = center_axis
 
-            texture_file = 'texture.png' if args.texture_noise <= 0 else 'texture' 
+            texture_file = 'texture.png' if args.texture_noise <= 0 else 'texture'
             if not args.no_texture_mesh:
                 self.texture_mesh(obj=obj, material_name=texture_file, texture_file=texture_file, overwrite=True,
                                   texture_params={'noise': args.texture_noise})
@@ -607,7 +610,7 @@ def main(args):
         scene.y_len = scene.render_frame_boundaries['top_right'][1] - scene.render_frame_boundaries['bottom_right'][1]
 
         scene.create_default_scene(args)
-        
+
         # Add a render timestamp
         ts = time.time()
         fts = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
@@ -628,7 +631,7 @@ if __name__=='__main__':
     parser.add_argument('--trajectory', action='store_true', help='whether or not to generate trajectory for shapes')
     parser.add_argument('--scene_type', type=str, default='default', help='Type of scene (current options: default | galaxy)')
     parser.add_argument('--n_shapes', type=int, default=1, help='How many meshes to include in scene')
-    
+
     # Texture default settings:
     min_dot_diam = 100
     max_dot_diam = 200

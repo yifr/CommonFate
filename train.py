@@ -151,13 +151,13 @@ def main():
 
     # Training settings
     parser = argparse.ArgumentParser(description='CommonFate State Inference')
-    parser.add_argument('--batch-size', type=int, default=100, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--scene_dir', type=str, default='scenes', metavar='DIR',
+    parser.add_argument('--scene_dir', type=str, default='scenes/data', metavar='DIR',
                         help='directory in which to look for scenes')
     parser.add_argument('--run_name', type=str, default='shapenet', metavar='NAME',
                         help='name to log run with in wandb')
-    parser.add_argument('--n_scenes', type=int, default=650, metavar='N',
+    parser.add_argument('--n_scenes', type=int, default=1000, metavar='N',
                         help='Total number of scenes to train on')
     parser.add_argument('--model_save_path', type=str, default='saved_models/shapenet.pt', metavar='P',
                         help='path to save model')
@@ -191,7 +191,7 @@ def main():
 
     wargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    out_size = 5 if args.pred_type == 'shape' else 6
+    out_size = 2 if args.pred_type == 'shape' else 6
     model = cnn.ShapeNet(out_size=out_size).to(device) #cnn.ResNet().to(device)
     scene_loader = SceneLoader(root_dir=args.scene_dir, n_scenes=args.n_scenes, img_size=256, device=device, as_rgb=False, transforms=model.get_transforms(), seed=args.seed)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

@@ -21,7 +21,7 @@ def dot_texture(width=1024, height=1024,
         img  = Image.new('RGB', (width, height), color=(255, 255, 255, 1))
         draw = ImageDraw.Draw(img)
         for _ in range(n_dots):
-            x, y = np.random.randint(max_diameter,width - max_diameter / 2), np.random.randint(max_diameter, height - max_diameter / 2)
+            x, y = np.random.randint(max_diameter,width - max_diameter), np.random.randint(max_diameter, height - max_diameter)
             diam = np.random.randint(min_diameter, max_diameter)
             draw.ellipse([x,y,x+diam,y+diam], fill='black')
 

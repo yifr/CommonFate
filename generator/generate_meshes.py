@@ -51,7 +51,7 @@ def generate(args):
                     superquadrics.save_obj_not_overlap(fname, x, y, z)
                 else:
                     superquadrics.save_obj(fname, x, y, z)
-                    
+
                 mesh_data[f'mesh_{m}'] = {'exponents': epsilons, 'scaling': list(scaling), 'type': curr_shape}
 
             with open(os.path.join(scene_dir, 'params.json'), 'w') as f:
@@ -67,6 +67,6 @@ if __name__=='__main__':
 
     args = parser.parse_args()
     if not os.path.exists(args.root_dir):
-        os.mkdir(root_dir)
+        os.mkdir(args.root_dir)
 
     generate(args)
