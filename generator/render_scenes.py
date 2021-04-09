@@ -625,7 +625,7 @@ if __name__=='__main__':
     parser.add_argument('--n_scenes', type=int, help='Number of scenes to generate', default=867)
     parser.add_argument('--n_frames', type=int, help='Number of frames to render per scene', default=10)
     parser.add_argument('--start_scene', type=int, help='Scene number to begin rendering from', default=0)
-    parser.add_argument('--experiment_name', type=str, help="Experiment name", default="trajectory_LED_two_shapes_v0")
+    parser.add_argument('--experiment_name', type=str, help="Experiment name", default="galaxy_scene_v1")
 
     # Scene settings
     parser.add_argument('--trajectory', action='store_true', help='whether or not to generate trajectory for shapes')
@@ -643,7 +643,7 @@ if __name__=='__main__':
     parser.add_argument('--texture_noise', type=float, help='Generates noisy texture sequence', default=0.0)
 
     # Render settings
-    parser.add_argument('--device', type=str, help='Either "cuda" or "cpu"', default='cuda')
+    parser.add_argument('--device', type=str, help='Either "CUDA" or "CPU"', default='CUDA')
     parser.add_argument('--engine', type=str, help='rendering engine', default='CYCLES')
     parser.add_argument('--output_img_name', type=str, help='Name for output images', default='img')
     parser.add_argument('--render_size', type=int, help='size of .png file to render', default=512)

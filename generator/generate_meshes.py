@@ -27,7 +27,7 @@ def generate(args):
                 epsilons = [e1, e2]
                 scaling = [1,1,1,2]
 
-                print(f'[SCENE: %s] Generating mesh with params: (e1={e1}, e2={e2})...')
+                print(f'[SCENE: {i}] Generating mesh with params: (e1={e1}, e2={e2})...')
 
                 curr_shape = ''
                 if args.shape_type == 'superellipsoid':

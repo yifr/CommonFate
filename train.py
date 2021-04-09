@@ -16,16 +16,16 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
     for batch_idx, scene_idx in enumerate(tqdm(scene_loader.train_idxs)):
         data = scene_loader.get_scene(scene_idx)
         frames = data['frame'].to(device)
-        target = data['shape_params']
-        mean_target = torch.mean(target, dim=0)
-
+        gt_shape = data['shape_params'].mean(axis=0)
+     
         optimizer.zero_grad()
-        shape_pred = model(frames)
-    
+        predicted_shape_mean = model(frames)
+        # print('\nGt_shape: ', gt_shape, '\t Predicted: ', predicted_shape_mean, '\n') 
+        # mean_target = torch.mean(target, dim=0)
         # shape_pred = torch.mean(shape_pred, dim=0)
         # shape_pred = torch.sigmoid(shape_pred) * 4  # shape exponents are in the range [0, 4] -> this enforces a non-negativity
 
-        loss = F.mse_loss(shape_pred, mean_target)
+        loss = model.prob_loss(gt_shape, predicted_shape_mean) # F.mse_loss(shape_pred, mean_target)
         loss.backward()
         optimizer.step()
 
@@ -39,9 +39,9 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
             print(f'Train Epoch: {epoch} [{frames_completed}/{total_frames} frames ({percent_complete:.0f}%)]\tMSE: {running_mse / (batch_idx + 1):.6f}')
 
     running_mse /=  len(scene_loader.train_idxs)
-    wandb.log({"Train MSE": running_mse})
+    wandb.log({"Train MSE": running_mse, 'epoch': epoch})
 
-def test_shapenet(args, model, device, scene_loader):
+def test_shapenet(args, model, device, scene_loader, epoch, best_test_score=10000):
     model.eval()
     test_loss_mse = 0
 
@@ -49,23 +49,24 @@ def test_shapenet(args, model, device, scene_loader):
         for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
             data = scene_loader.get_scene(scene_idx)
             frames = data['frame'].to(device)
-            mean_target = torch.mean(data['shape_params'], axis=0)
+            gt_shape = data['shape_params']
 
-            shape_pred = model(frames)
-            # shape_pred = torch.mean(output, dim=0)
-            # shape_pred = torch.sigmoid(shape_pred) * 4  # shape exponents are in the range [0, 4] -> this enforces a non-negativity
+            predicted_shape_mean = model(frames)
 
-            loss = F.mse_loss(shape_pred, mean_target)
+            loss = model.prob_loss(gt_shape, predicted_shape_mean)
             test_loss_mse += loss
 
     test_loss_mse /= len(scene_loader.test_idxs)
 
     print(f'\nTest set: Average MSE: {test_loss_mse:.4f}\n')
 
-    wandb.log({"Test MSE": test_loss_mse})
+    wandb.log({"Test MSE": test_loss_mse, 'epoch': epoch})
 
-    torch.save(model.state_dict(), args.model_save_path)
-
+    if test_loss_mse < best_test_score:
+            torch.save(model.state_dict(), args.model_save_path)
+            best_test_score = test_loss_mse
+    
+    return best_test_score 
 
 def train_posenet(args, model, device, scene_loader, optimizer, epoch):
     model.train()
@@ -200,9 +201,10 @@ def main():
     print('Initialized model and data loader, beginning training...')
 
     for epoch in range(1, args.epochs + 1):
+        best_test = 100000
         if args.pred_type == 'shape':
             train_shapenet(args, model, device, scene_loader, optimizer, epoch)
-            test_shapenet(args, model, device, scene_loader)
+            best_test = test_shapenet(args, model, device, scene_loader, epoch, best_test)
         else:
             train_posenet(args, model, device, scene_loader, optimizer, epoch)
             test_posenet(args, model, device, scene_loader)

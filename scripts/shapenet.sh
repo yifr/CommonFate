@@ -9,4 +9,4 @@
 #SBATCH -p tenenbaum
 #SBATCH --mem=4G
 
-python train.py --model_save_path saved_models/shapenet_mean_ftvec.pt --run_name shapenet_mean_ftvec --epochs 1000
+python train.py --model_save_path saved_models/shapenet_prob_loss_v1.pt --run_name shapenet_prob_loss_v1 --epochs 1000 --scene_dir scenes/single_shape_plain

@@ -19,32 +19,60 @@ class ShapeNet(nn.Module):
                         nn.MaxPool2d(2),
                         nn.ReLU()
                         )
-        
+
         conv_out = int(img_size / 4 - 2)
         self.fc1 = nn.Linear(40 * conv_out * conv_out, 100)
         self.fc2 = nn.Linear(100, 20)
         self.fc3 = nn.Linear(20, out_size)
         self._transforms = T.Compose([T.Resize(img_size),
-                                      T.ToTensor()]
-                                    )
+                T.ToTensor()]
+                )
+
     def get_transforms(self):
         return self._transforms
 
-    def forward(self, x):
+    def forward(self, x, transform=True):
         x = self.feature_extractor(x)
         x = x.view(x.shape[0], -1)
         x = torch.mean(x, dim=0)
-        
+
         x = self.fc1(x)
         x = F.relu(x)
-       
+
         x = self.fc2(x)
         x = F.relu(x)
-        
+
         x = self.fc3(x)
-        x = torch.sigmoid(x) * 4
-        
+        if transform:
+            x = torch.sigmoid(x) * 4
+
         return x
+    
+    def inverse_transform(self, shape_params, eps=1e-4):
+        """
+        Transform shape parameters (defined in the range [0, 4]) to
+        model space defined between -1 and 1. Do so by taking inverse 
+        of sigmoid and dividing by 4
+        """
+        out = shape_params / 4
+        out = torch.clamp(out, eps, 1-eps) 
+        out = torch.log(out / (1 - out))
+        return out
+
+    def shape_transform(self, model_params):
+        return F.sigmoid(model_params) * 4
+    
+    def get_shape_dist(self, predicted_mean):
+        predicted_std = 1 #predicted_shape_dist[2:]
+        return torch.distributions.Independent(
+            torch.distributions.Normal(predicted_mean, predicted_std),
+            reinterpreted_batch_ndims=1
+            )
+    
+    def prob_loss(self, gt_shape, predicted_shape_mean):
+        # gt_shape = self.inverse_transform(gt_shape)
+        loss = -self.get_shape_dist(predicted_shape_mean).log_prob(gt_shape).mean()
+        return loss
 
 class SimpleCNN(nn.Module):
     """
@@ -62,14 +90,14 @@ class SimpleCNN(nn.Module):
         self.fc2 = nn.Linear(50, out_size)
 
         self._transforms = T.Compose([T.Resize(img_size),
-                                      T.ToTensor()]
-                                    )
+                T.ToTensor()]
+                )
 
     def get_transforms(self):
         return self._transforms
 
     def forward(self, x):
-        # Conv 1
+            # Conv 1
         x = self.conv1(x)
         x = F.max_pool2d(x, 2)
         x = F.relu(x)
@@ -85,7 +113,7 @@ class SimpleCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        
+
         x = torch.mean(x, dim=0)
         x = torch.sigmoid(x) * 4
 
@@ -106,15 +134,15 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self._model = models.resnet18(pretrained=pretrained)
         self._transforms = T.Compose([T.ToTensor(),
-                                      T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                                      T.Resize(256),
-                                      T.CenterCrop(224)]
-                                    )
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                T.Resize(256),
+                T.CenterCrop(224)]
+                )
         # Replace model fc head
         n_inputs = self._model.fc.in_features
         self._model.fc = nn.Sequential(nn.Linear(n_inputs, 100),
-                                       nn.ReLU(),
-                                       nn.Linear(100, out_size))
+                        nn.ReLU(),
+                        nn.Linear(100, out_size))
 
         self._loss = loss
 
@@ -151,4 +179,4 @@ class ResNet1ch(models.resnet.ResNet):
     def __init__(self, block, layers, num_classes=4):
         super(ResNet, self).__init__(block, layers, num_classes=4)
         self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1, padding=1,
-                               bias=False)
+                        bias=False)
