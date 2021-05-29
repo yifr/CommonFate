@@ -9,12 +9,11 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms as T
 
 class Scene(Dataset):
-    def __init__(self, root_dir, scene_number, device='cuda', transforms=None, n_frames=100, img_size=128, as_rgb=False):
+    def __init__(self, scene_dir, device='cuda', transforms=None, n_frames=100, img_size=128, as_rgb=False):
         """
         Encapsulates a single scene
         """
-        self.root_dir = root_dir
-        self.scene_dir = os.path.join(root_dir, 'scene_%03d' % scene_number)
+        self.scene_dir = scene_dir
         self.image_dir = os.path.join(self.scene_dir, 'images')
         self.n_frames = n_frames
         self.img_size = img_size
@@ -90,7 +89,7 @@ class SceneLoader():
     assuming A = B = C = 1
     """
 
-    def __init__(self, root_dir, transforms=None, device='cuda',
+    def __init__(self, root_dirs, transforms=None, device='cuda',
                  n_scenes=0, n_frames=20, img_size=256,
                  batch_size=100, train_size=0.8, as_rgb=False, seed=42):
         """
@@ -99,17 +98,18 @@ class SceneLoader():
             img_transform (callable, optional): Optional transform to be applied to images
             n_scenes (int, optional): Total number of scenes in dataset (will be counted automatically if 0)
         """
-        if not os.path.exists(root_dir):
-            raise ValueError(f'Data directory: {root_dir} does not exist!')
+        for scene_dir in root_dirs:
+            if not os.path.exists(scene_dir):
+                 raise ValueError(f'Data directory: {scene_dir} does not exist!')
 
-        self.root_dir = root_dir
+        self.root_dirs = root_dirs
         self.transforms = transforms
         self.device = device
         self.batch_size = batch_size # Batch size is defined over frames per scene
         self.seed = seed
-
+        
         if n_scenes == 0:
-            self.n_scenes = len(os.listdir(root_dir))
+            self.n_scenes = len(os.listdir(root_dirs[0]))
         else:
             self.n_scenes = n_scenes
 
@@ -120,6 +120,11 @@ class SceneLoader():
         self.as_rgb = as_rgb
         self.train_size = train_size
         self.train_test_split(train_size)
+        print(f'''Data Loader initialized:
+                    \troot_dirs: {self.root_dirs},
+                    \tscenes: {self.n_scenes},
+                    \tframes: {self.n_frames},
+                    \ttrain/test: {len(self.train_idxs), len(self.test_idxs)}''')
 
     def train_test_split(self, train_size=0.8, test_size=0.2):
         n_train = int(train_size * self.n_scenes)
@@ -131,18 +136,28 @@ class SceneLoader():
         """
         Returns total number of scenes in root directory
         """
-        return self.n_scenes
+        return self.n_scenes    
 
+    def get_scene_dir(self, idx):
+        scenes_per_dir = int(self.n_scenes / len(self.root_dirs))
+        root_dir_idx = int(idx / scenes_per_dir)
+        scene_dir = self.root_dirs[root_dir_idx]
+        scene_idx = idx % scenes_per_dir
+        return os.path.join(scene_dir, f'scene_{scene_idx:03d}')
 
-    def get_scene(self, idx):
+    def get_scene(self, scene_dir):
         """
+        scene_dir: either int specifying scene_idx or full scene_dir path
         Compiles scene data for a scene at a given index
         """
-        scene = Scene(self.root_dir, idx, device=self.device,
+        if type(scene_dir) != str:
+            scene_dir = self.get_scene_dir(scene_dir)
+        
+        scene = Scene(scene_dir, device=self.device,
                       n_frames=self.n_frames, img_size=self.img_size,
                       transforms=self.transforms, as_rgb=self.as_rgb)
-
 
         scene_loader = DataLoader(scene, batch_size=self.batch_size)
         data = iter(scene_loader).next()
         return data
+
