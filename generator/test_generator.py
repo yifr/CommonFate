@@ -6,4 +6,4 @@ sys.path.append(generator_path)
 
 from render_scenes import BlenderScene
 
-s = BlenderScene('test')
+s = BlenderScene("test")

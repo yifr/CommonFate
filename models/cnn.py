@@ -5,28 +5,26 @@ import torchvision.models as models
 from torchvision import transforms as T
 from . import loss
 
-class ShapeNet(nn.Module):
 
+class ShapeNet(nn.Module):
     def __init__(self, img_size=256, out_size=5):
         super(ShapeNet, self).__init__()
         self.img_size = img_size
         self.out_size = out_size
         self.feature_extractor = nn.Sequential(
-                        nn.Conv2d(1, 20, kernel_size=3),
-                        nn.MaxPool2d(2),
-                        nn.ReLU(),
-                        nn.Conv2d(20, 40, kernel_size=3),
-                        nn.MaxPool2d(2),
-                        nn.ReLU()
-                        )
+            nn.Conv2d(1, 20, kernel_size=3),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            nn.Conv2d(20, 40, kernel_size=3),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+        )
 
         conv_out = int(img_size / 4 - 2)
         self.fc1 = nn.Linear(40 * conv_out * conv_out, 100)
         self.fc2 = nn.Linear(100, 20)
         self.fc3 = nn.Linear(20, out_size)
-        self._transforms = T.Compose([T.Resize(img_size),
-                T.ToTensor()]
-                )
+        self._transforms = T.Compose([T.Resize(img_size), T.ToTensor()])
 
     def get_transforms(self):
         return self._transforms
@@ -47,38 +45,42 @@ class ShapeNet(nn.Module):
             x = torch.sigmoid(x) * 4
 
         return x
-    
+
     def inverse_transform(self, shape_params, eps=1e-4):
         """
         Transform shape parameters (defined in the range [0, 4]) to
-        model space defined between -1 and 1. Do so by taking inverse 
+        model space defined between -1 and 1. Do so by taking inverse
         of sigmoid and dividing by 4
         """
         out = shape_params / 4
-        out = torch.clamp(out, eps, 1-eps) 
+        out = torch.clamp(out, eps, 1 - eps)
         out = torch.log(out / (1 - out))
         return out
 
     def shape_transform(self, model_params):
         return F.sigmoid(model_params) * 4
-    
+
     def get_shape_dist(self, predicted_mean):
-        predicted_std = 1 #predicted_shape_dist[2:]
+        predicted_std = 1  # predicted_shape_dist[2:]
         return torch.distributions.Independent(
             torch.distributions.Normal(predicted_mean, predicted_std),
-            reinterpreted_batch_ndims=1
-            )
-    
+            reinterpreted_batch_ndims=1,
+        )
+
     def prob_loss(self, gt_shape, predicted_shape_mean):
         # gt_shape = self.inverse_transform(gt_shape)
         loss = -self.get_shape_dist(predicted_shape_mean).log_prob(gt_shape).mean()
         return loss
 
+
 class SimpleCNN(nn.Module):
     """
     4 Layer feedforward CNN with dropout after convolutional layers
     """
-    def __init__(self, img_size=256, out_size=6, loss=loss.PoseLoss(break_symmetry=True)):
+
+    def __init__(
+        self, img_size=256, out_size=6, loss=loss.PoseLoss(break_symmetry=True)
+    ):
         super(SimpleCNN, self).__init__()
         self.img_size = img_size
         self._loss = loss
@@ -89,15 +91,13 @@ class SimpleCNN(nn.Module):
         self.fc1 = nn.Linear(40 * conv_out * conv_out, 50)
         self.fc2 = nn.Linear(50, out_size)
 
-        self._transforms = T.Compose([T.Resize(img_size),
-                T.ToTensor()]
-                )
+        self._transforms = T.Compose([T.Resize(img_size), T.ToTensor()])
 
     def get_transforms(self):
         return self._transforms
 
     def forward(self, x):
-            # Conv 1
+        # Conv 1
         x = self.conv1(x)
         x = F.max_pool2d(x, 2)
         x = F.relu(x)
@@ -127,22 +127,28 @@ class SimpleCNN(nn.Module):
         return next(self.parameters()).device
 
     def __str__(self):
-        return 'SimpleCNN'
+        return "SimpleCNN"
+
 
 class ResNet(nn.Module):
-    def __init__(self, pretrained=True, out_size=6, loss=loss.PoseLoss(break_symmetry=True)):
+    def __init__(
+        self, pretrained=True, out_size=6, loss=loss.PoseLoss(break_symmetry=True)
+    ):
         super(ResNet, self).__init__()
         self._model = models.resnet18(pretrained=pretrained)
-        self._transforms = T.Compose([T.ToTensor(),
+        self._transforms = T.Compose(
+            [
+                T.ToTensor(),
                 T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                 T.Resize(256),
-                T.CenterCrop(224)]
-                )
+                T.CenterCrop(224),
+            ]
+        )
         # Replace model fc head
         n_inputs = self._model.fc.in_features
-        self._model.fc = nn.Sequential(nn.Linear(n_inputs, 100),
-                        nn.ReLU(),
-                        nn.Linear(100, out_size))
+        self._model.fc = nn.Sequential(
+            nn.Linear(n_inputs, 100), nn.ReLU(), nn.Linear(100, out_size)
+        )
 
         self._loss = loss
 
@@ -156,13 +162,13 @@ class ResNet(nn.Module):
     def loss(self, pred, gt):
         return self._loss.compute_loss(pred, gt)
 
-    def load_trained(self, trained_model, device='cuda'):
-        print(f'Loading trained weights from {trained_model}')
+    def load_trained(self, trained_model, device="cuda"):
+        print(f"Loading trained weights from {trained_model}")
         state_dict = torch.load(trained_model, map_location=torch.device(device))
         # match up state dict keys with model keys:
-        state_dict = {k.partition('_model.')[2]: v for k, v in state_dict.items()}
+        state_dict = {k.partition("_model.")[2]: v for k, v in state_dict.items()}
         res = self._model.load_state_dict(state_dict)
-        print('Result: ', res)
+        print("Result: ", res)
         return res
 
     @property
@@ -170,13 +176,14 @@ class ResNet(nn.Module):
         return next(self.parameters()).device
 
     def __str__(self):
-        return 'ResNet'
+        return "ResNet"
+
 
 class ResNet1ch(models.resnet.ResNet):
     """
     Overrides ResNet architecture for a 1 channel input
     """
+
     def __init__(self, block, layers, num_classes=4):
         super(ResNet, self).__init__(block, layers, num_classes=4)
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1, padding=1,
-                        bias=False)
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1, padding=1, bias=False)

@@ -7,6 +7,14 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from PIL import Image
 from pyquaternion import Quaternion
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--scene_dir', type=str, default='experiments/scenes')
+parser.add_argument('--n_meshes', type=int, default=4)
+parser.add_argument('--img_samples', type=int, default=)
+parser.add_argument('--output_dir', type=str)
 
 def render_frame(mesh, rotation_axis=None, degrees=0, transformation_matrix=None):
     """
@@ -53,7 +61,7 @@ def render_frame(mesh, rotation_axis=None, degrees=0, transformation_matrix=None
 
     return fig, {'transformation_matrix': transformation_matrix, 'axis': rotation_axis, 'degrees': degrees}
 
-def render_frame_sequence(shape, scene_dir, n_frames=200):
+def render_frame_sequence(shape, scene_dir, n_frames=5):
     """
     Renders N frames defining a 360 degree rotation about a random axis
     Saves individual frame for each step in the rotation
@@ -125,12 +133,10 @@ def create_vid(base_dir, output_name, frame_rate=25):
     else:
         return False
 
-def main():
-    n_scenes = 101
-    n_frames = 200
-    for scene in range(n_scenes, n_scenes+1):
+def main(args):
+    for scene in range(n_scenes):
         base_dir = 'objects/scene_%03d'%scene
-        obj_file = base_dir + '/textured.obj'
+        obj_file = base_dir + '/d.obj'
 
         print(base_dir)
         shape = trimesh.load(obj_file)
@@ -146,4 +152,5 @@ def main():
             sys.exit(0)
 
 if __name__=='__main__':
-    main()
+    args = parser.parse_args()
+    main(args)

@@ -6,15 +6,16 @@ from scipy.spatial.transform import Rotation
 
 ls = PoseLoss(break_symmetry=True)
 ortho6d = torch.rand(100, 6)
-data = np.load('scenes/scene_000/data.npy', allow_pickle=True).item()
-rmat_gt = np.zeros(shape=(100, 3,3))
-quat_gt = data['quaternion']
+data = np.load("scenes/scene_000/data.npy", allow_pickle=True).item()
+rmat_gt = np.zeros(shape=(100, 3, 3))
+quat_gt = data["quaternion"]
 
-print(data['rotation'][0].shape == (3,3))
+print(data["rotation"][0].shape == (3, 3))
 rmat_gt = torch.from_numpy(rmat_gt)
 quat_gt = torch.from_numpy(quat_gt)
 
-#loss = ls.compute_loss(ortho6d, quat_gt)
+# loss = ls.compute_loss(ortho6d, quat_gt)
+
 
 def quaternion_to_matrix(quaternions):
     """
@@ -39,10 +40,8 @@ def quaternion_to_matrix(quaternions):
             two_s * (i * k - j * r),
             two_s * (j * k + i * r),
             1 - two_s * (i * i + j * j),
-
         ),
         -1,
-
     )
     return o.reshape(quaternions.shape[:-1] + (3, 3))
 
@@ -53,9 +52,10 @@ def get_rotations(quats):
         rotations[i] = torch.from_numpy(Quaternion(q.detach().numpy()).rotation_matrix)
     return rotations
 
+
 m1 = quaternion_to_matrix(quat_gt)
 m2 = get_rotations(quat_gt)
 m3 = ls.rotation_matrix_from_quaternion(quat_gt)
 
 idx = 49
-print('FB:\n', m1[idx], '\nPyQuaternion\n', m2[idx], '\nNP\n', m3[idx])
+print("FB:\n", m1[idx], "\nPyQuaternion\n", m2[idx], "\nNP\n", m3[idx])

@@ -8,14 +8,24 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms as T
 
+
 class Scene(Dataset):
-    def __init__(self, root_dir, scene_number, device='cuda', transforms=None, n_frames=100, img_size=128, as_rgb=False):
+    def __init__(
+        self,
+        root_dir,
+        scene_number,
+        device="cuda",
+        transforms=None,
+        n_frames=100,
+        img_size=128,
+        as_rgb=False,
+    ):
         """
         Encapsulates a single scene
         """
         self.root_dir = root_dir
-        self.scene_dir = os.path.join(root_dir, 'scene_%03d' % scene_number)
-        self.image_dir = os.path.join(self.scene_dir, 'images')
+        self.scene_dir = os.path.join(root_dir, "scene_%03d" % scene_number)
+        self.image_dir = os.path.join(self.scene_dir, "images")
         self.n_frames = n_frames
         self.img_size = img_size
 
@@ -24,16 +34,16 @@ class Scene(Dataset):
         self.transforms = transforms
 
         self.device = device
-        self.as_rgb = as_rgb # Whether to load images as 3 channel rgb images
+        self.as_rgb = as_rgb  # Whether to load images as 3 channel rgb images
 
         # Load rotation parameters
-        scene_data = os.path.join(self.scene_dir, 'data.npy')
+        scene_data = os.path.join(self.scene_dir, "data.npy")
         data_dict = np.load(scene_data, allow_pickle=True).item()[0]
 
         self.shape_params = self.get_exponents()
-        self.rotations = data_dict['quaternion']
-        self.angle = data_dict['angle']
-        self.axis = data_dict['axis']
+        self.rotations = data_dict["quaternion"]
+        self.angle = data_dict["angle"]
+        self.axis = data_dict["axis"]
         self.params = self.get_exponents()
 
     def __len__(self):
@@ -47,9 +57,9 @@ class Scene(Dataset):
         Return frame image, shape and rotation parameters for
         a given frame
         """
-        frame_idx = idx + 1 # frame images start from 0001
+        frame_idx = idx + 1  # frame images start from 0001
 
-        filename = os.path.join(self.image_dir, 'img_%04d.png' % frame_idx)
+        filename = os.path.join(self.image_dir, "img_%04d.png" % frame_idx)
         img_raw = Image.open(filename)
 
         # If we're using a pre-trained model, create 3 channels (images are stacked 1 channel Black and White)
@@ -63,8 +73,13 @@ class Scene(Dataset):
         angle = torch.tensor(self.angle[idx]).to(self.device)
         axis = torch.tensor(self.axis[idx]).to(self.device)
 
-        return {'frame': img, 'rotation': rotation, 
-                'angle': angle, 'axis': axis, 'shape_params': self.params}
+        return {
+            "frame": img,
+            "rotation": rotation,
+            "angle": angle,
+            "axis": axis,
+            "shape_params": self.params,
+        }
 
     def get_exponents(self):
         """
@@ -72,13 +87,16 @@ class Scene(Dataset):
         Args:
             scene_dir (string): directory containing params.txt file
         """
-        param_file = os.path.join(self.scene_dir, 'params.json')
-        with open(param_file, 'r') as f:
+        param_file = os.path.join(self.scene_dir, "params.json")
+        with open(param_file, "r") as f:
             param_data = json.load(f)
-        exponents = torch.tensor(param_data['mesh_0']['exponents'], dtype=torch.float32, device=self.device)
+        exponents = torch.tensor(
+            param_data["mesh_0"]["exponents"], dtype=torch.float32, device=self.device
+        )
         return exponents
 
-class SceneLoader():
+
+class SceneLoader:
     """
     Describes a dataset over scenes. Each scene directory contains
     an image folder with N frames of a superquadric in rotation.
@@ -90,9 +108,19 @@ class SceneLoader():
     assuming A = B = C = 1
     """
 
-    def __init__(self, root_dir, transforms=None, device='cuda',
-                 n_scenes=0, n_frames=20, img_size=256,
-                 batch_size=100, train_size=0.8, as_rgb=False, seed=42):
+    def __init__(
+        self,
+        root_dir,
+        transforms=None,
+        device="cuda",
+        n_scenes=0,
+        n_frames=20,
+        img_size=256,
+        batch_size=100,
+        train_size=0.8,
+        as_rgb=False,
+        seed=42,
+    ):
         """
         Args:
             root_dir (string): root directory for the generated scenes
@@ -100,12 +128,12 @@ class SceneLoader():
             n_scenes (int, optional): Total number of scenes in dataset (will be counted automatically if 0)
         """
         if not os.path.exists(root_dir):
-            raise ValueError(f'Data directory: {root_dir} does not exist!')
+            raise ValueError(f"Data directory: {root_dir} does not exist!")
 
         self.root_dir = root_dir
         self.transforms = transforms
         self.device = device
-        self.batch_size = batch_size # Batch size is defined over frames per scene
+        self.batch_size = batch_size  # Batch size is defined over frames per scene
         self.seed = seed
 
         if n_scenes == 0:
@@ -125,7 +153,9 @@ class SceneLoader():
         n_train = int(train_size * self.n_scenes)
         np.random.seed(self.seed)
         self.train_idxs = np.random.choice(self.n_scenes, n_train, replace=False)
-        self.test_idxs = np.delete(np.arange(0, self.n_scenes, 1), self.train_idxs) # remaining indexes used for test
+        self.test_idxs = np.delete(
+            np.arange(0, self.n_scenes, 1), self.train_idxs
+        )  # remaining indexes used for test
 
     def __len__(self):
         """
@@ -133,15 +163,19 @@ class SceneLoader():
         """
         return self.n_scenes
 
-
     def get_scene(self, idx):
         """
         Compiles scene data for a scene at a given index
         """
-        scene = Scene(self.root_dir, idx, device=self.device,
-                      n_frames=self.n_frames, img_size=self.img_size,
-                      transforms=self.transforms, as_rgb=self.as_rgb)
-
+        scene = Scene(
+            self.root_dir,
+            idx,
+            device=self.device,
+            n_frames=self.n_frames,
+            img_size=self.img_size,
+            transforms=self.transforms,
+            as_rgb=self.as_rgb,
+        )
 
         scene_loader = DataLoader(scene, batch_size=self.batch_size)
         data = iter(scene_loader).next()

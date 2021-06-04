@@ -1,6 +1,7 @@
 import sys
 import argparse
 
+
 class ArgParser(argparse.ArgumentParser):
     """
     This class is identical to its superclass, except for the parse_args
@@ -26,8 +27,8 @@ class ArgParser(argparse.ArgumentParser):
         """
         try:
             idx = sys.argv.index("--")
-            return sys.argv[idx+1:] # the list after '--'
-        except ValueError as e: # '--' not in the list:
+            return sys.argv[idx + 1 :]  # the list after '--'
+        except ValueError as e:  # '--' not in the list:
             return []
 
     # overrides superclass
@@ -39,4 +40,3 @@ class ArgParser(argparse.ArgumentParser):
         usage examples and details.
         """
         return super().parse_args(args=self._get_argv_after_doubledash())
-

@@ -7,21 +7,27 @@ Author: Huayi Zeng
 import os
 import numpy as np
 
+
 def save_pts(path_save, x, y, z):
     x = x.flatten()
     y = y.flatten()
     z = z.flatten()
     pts = np.zeros((x.shape[0], 3))
     pts[:, 0], pts[:, 1], pts[:, 2] = x, y, z
-    np.savetxt(path_save, pts, fmt='%1.3f')
+    np.savetxt(path_save, pts, fmt="%1.3f")
 
-def save_obj(path_save, x, y, z, threshold = -1):
+
+def save_obj(path_save, x, y, z, threshold=-1):
     hei, wid = x.shape[0], x.shape[1]
     with open(path_save, "w+") as fout:
         for i in range(hei):
             for j in range(wid):
                 if threshold > 0:
-                    if np.abs(x[i, j]) > threshold or np.abs(y[i, j]) > threshold or np.abs(z[i, j]) > threshold:
+                    if (
+                        np.abs(x[i, j]) > threshold
+                        or np.abs(y[i, j]) > threshold
+                        or np.abs(z[i, j]) > threshold
+                    ):
                         continue
                     fout.write("v %.3f %.3f %.3f\n" % (x[i, j], y[i, j], z[i, j]))
                 else:
@@ -30,8 +36,19 @@ def save_obj(path_save, x, y, z, threshold = -1):
         if threshold < 0:
             for i in range(hei - 1):
                 for j in range(wid - 1):
-                    fout.write("f %d %d %d\n" % ((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1))
-                    fout.write("f %d %d %d\n" % ((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1))
+                    fout.write(
+                        "f %d %d %d\n"
+                        % ((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1)
+                    )
+                    fout.write(
+                        "f %d %d %d\n"
+                        % (
+                            (i + 1) * wid + j + 1 + 1,
+                            i * wid + j + 1 + 1,
+                            (i + 1) * wid + j + 1,
+                        )
+                    )
+
 
 def save_obj_not_overlap(path_save, x, y, z):
     """
@@ -50,17 +67,47 @@ def save_obj_not_overlap(path_save, x, y, z):
                 count += 1
         for i in range(0, hei - 3):
             for j in range(0, wid - 2):
-                fout.write("f %d %d %d %d\n" % (i * (wid - 1) + j + 1, i * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 2, (i + 1) * (wid - 1) + j + 1))
+                fout.write(
+                    "f %d %d %d %d\n"
+                    % (
+                        i * (wid - 1) + j + 1,
+                        i * (wid - 1) + j + 2,
+                        (i + 1) * (wid - 1) + j + 2,
+                        (i + 1) * (wid - 1) + j + 1,
+                    )
+                )
         for i in range(0, hei - 3):
-            fout.write("f %d %d %d %d\n" % (i * (wid - 1) + wid - 2 + 1, i * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + 0 + 1, (i + 1) * (wid - 1) + wid - 2 + 1))
+            fout.write(
+                "f %d %d %d %d\n"
+                % (
+                    i * (wid - 1) + wid - 2 + 1,
+                    i * (wid - 1) + 0 + 1,
+                    (i + 1) * (wid - 1) + 0 + 1,
+                    (i + 1) * (wid - 1) + wid - 2 + 1,
+                )
+            )
         fout.write("v %.3f %.3f %.3f\n" % (x[0, 0], y[0, 0], z[0, 0]))
         fout.write("v %.3f %.3f %.3f\n" % (x[-1, -1], y[-1, -1], z[-1, -1]))
         for j in range(0, wid - 2):
-            fout.write("f %d %d %d\n" % (count+1, j + 2, j + 1))
-        fout.write("f %d %d %d\n" % (count+1, 1, wid - 2 + 1))
+            fout.write("f %d %d %d\n" % (count + 1, j + 2, j + 1))
+        fout.write("f %d %d %d\n" % (count + 1, 1, wid - 2 + 1))
         for j in range(0, wid - 2):
-            fout.write("f %d %d %d\n" % (count+2, (hei - 3) * (wid - 1) + j + 1, (hei - 3) * (wid - 1) + j + 2))
-        fout.write("f %d %d %d\n" % (count+2, (hei - 3) * (wid - 1) + wid - 3 + 2, (hei - 3) * (wid - 1) + 1))
+            fout.write(
+                "f %d %d %d\n"
+                % (
+                    count + 2,
+                    (hei - 3) * (wid - 1) + j + 1,
+                    (hei - 3) * (wid - 1) + j + 2,
+                )
+            )
+        fout.write(
+            "f %d %d %d\n"
+            % (
+                count + 2,
+                (hei - 3) * (wid - 1) + wid - 3 + 2,
+                (hei - 3) * (wid - 1) + 1,
+            )
+        )
 
 
 def get_faces_and_verts(x, y, z, use_existing_faces=True):
@@ -82,31 +129,45 @@ def get_faces_and_verts(x, y, z, use_existing_faces=True):
     for i in range(hei - 1):
         for j in range(wid - 1):
             faces.append(((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1))
-            faces.append(((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1))
+            faces.append(
+                ((i + 1) * wid + j + 1 + 1, i * wid + j + 1 + 1, (i + 1) * wid + j + 1)
+            )
 
     if use_existing_faces:
-        current_path = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+        current_path = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.dirname(__file__))
+        )
         try:
-            faces = list(np.load(os.path.join(current_path, 'faces.npy'), allow_pickle=True))
+            faces = list(
+                np.load(os.path.join(current_path, "faces.npy"), allow_pickle=True)
+            )
         except:
-            print(f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
-                To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.')
+            print(
+                f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
+                To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.'
+            )
     return faces, verts
+
 
 def sgn(x):
     return np.sign(x)
 
+
 def signed_sin(w, m):
     return sgn(np.sin(w)) * np.power(np.abs(np.sin(w)), m)
+
 
 def signed_cos(w, m):
     return sgn(np.cos(w)) * np.power(np.abs(np.cos(w)), m)
 
+
 def signed_tan(w, m):
     return sgn(np.tan(w)) * np.power(np.abs(np.tan(w)), m)
 
+
 def signed_sec(w, m):
     return sgn(np.cos(w)) * np.power(np.abs(1 / np.cos(w)), m)
+
 
 def superellipsoid(epsilon, a, n):
     """
@@ -115,7 +176,7 @@ def superellipsoid(epsilon, a, n):
     epsilon is a 2-element vector: 2/r, 2/s
     """
 
-    eta = np.linspace(-np.pi/2, np.pi/2, n)
+    eta = np.linspace(-np.pi / 2, np.pi / 2, n)
     w = np.linspace(-np.pi, np.pi, n)
     eta, w = np.meshgrid(eta, w)
 
@@ -139,8 +200,12 @@ def supertoroid(epsilon, a, n):
     return x, y, z
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     path_save = "temp.obj"
-    
-    x,y,z, = superellipsoid([3.74, 0.05], [1,1,1,2], 100)
-    save_obj_not_overlap(path_save, x,y,z)
+
+    (
+        x,
+        y,
+        z,
+    ) = superellipsoid([3.74, 0.05], [1, 1, 1, 2], 100)
+    save_obj_not_overlap(path_save, x, y, z)

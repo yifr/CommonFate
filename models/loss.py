@@ -30,7 +30,7 @@ class PoseLoss:
         mean_train = torch.mean(gt_rmat, axis=0)
         chance_mse = torch.mean((mean_train - gt_rmat) ** 2)
 
-        return {'mse': mse, 'geodesic': geodesic, 'chance': chance_mse}
+        return {"mse": mse, "geodesic": geodesic, "chance": chance_mse}
 
     def geodesic_dist(self, m1, m2, cos_angle=False):
         """
@@ -44,7 +44,9 @@ class PoseLoss:
         m = torch.bmm(m1, m2.permute(0, 2, 1))
         batch, d1, d2 = m.shape
         if d1 != 3 or d2 != 3:
-            raise ValueError('Geodesic distance only implemented for batches of 3x3 Tensors')
+            raise ValueError(
+                "Geodesic distance only implemented for batches of 3x3 Tensors"
+            )
 
         rotation_trace = m[:, 0, 0] + m[:, 1, 1] + m[:, 2, 2]
         rotation_trace = torch.clamp(rotation_trace, -1.0, 3.0)
@@ -65,18 +67,19 @@ class PoseLoss:
         batch_size = ortho6d.shape[0]
         x_raw = ortho6d[:, :3]
         y_raw = ortho6d[:, 3:]
-        x = F.normalize(x_raw, p=2, dim=1) # batch * 3
-        batch_dot = torch.bmm(x.view(batch_size, 1, -1), y_raw.view(batch_size, -1, 1)).view(batch_size, 1)
-        y = F.normalize(y_raw - batch_dot * x, p=2, dim=1) # batch * 3
+        x = F.normalize(x_raw, p=2, dim=1)  # batch * 3
+        batch_dot = torch.bmm(
+            x.view(batch_size, 1, -1), y_raw.view(batch_size, -1, 1)
+        ).view(batch_size, 1)
+        y = F.normalize(y_raw - batch_dot * x, p=2, dim=1)  # batch * 3
         z = torch.cross(x, y, dim=1)
 
         x = x.view(-1, 3, 1)
         y = y.view(-1, 3, 1)
         z = z.view(-1, 3, 1)
-        m = torch.cat((x, y, z), 2) # batch * 3 * 3
+        m = torch.cat((x, y, z), 2)  # batch * 3 * 3
 
         return m
-
 
     def rotation_matrix_from_quaternion(self, quaternions):
         """
@@ -103,10 +106,8 @@ class PoseLoss:
                 two_s * (i * k - j * r),
                 two_s * (j * k + i * r),
                 1 - two_s * (i * i + j * j),
-
             ),
             -1,
         )
 
         return o.reshape(quaternions.shape[:-1] + (3, 3))
-

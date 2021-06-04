@@ -1,7 +1,8 @@
 import os
 import bpy
 
-def set_mode(mode, obj_type='MESH'):
+
+def set_mode(mode, obj_type="MESH"):
     """
     Sets the mode for a specific object type
 
@@ -16,6 +17,7 @@ def set_mode(mode, obj_type='MESH'):
         if obj.type == obj_type:
             bpy.context.view_layer.objects.active = obj
             bpy.ops.object.mode_set(mode=mode)
+
 
 def delete_all(obj_type):
     """
@@ -34,8 +36,9 @@ def delete_all(obj_type):
             o.select_set(True)
         else:
             o.select_set(False)
-    set_mode('OBJECT')
+    set_mode("OBJECT")
     bpy.ops.object.delete()
+
 
 def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
     """
@@ -50,24 +53,28 @@ def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
     bpy.context.view_layer.objects.active = obj
     mesh.from_pydata(verts, edges, faces)
 
+
 def cube_project():
-    set_mode('EDIT')
+    set_mode("EDIT")
     bpy.ops.uv.cube_project(cube_size=1)
+
 
 def load_img(path):
     img = bpy.data.images.load(filepath=path)
     return img
 
+
 def load_obj(path):
     mesh = bpy.ops.import_scene.obj(filepath=path)
     return mesh
 
-def export_obj(obj, scene_dir, fname='textured.obj'):
+
+def export_obj(obj, scene_dir, fname="textured.obj"):
     """
     Exports textured mesh to a file called textured.obj.
     Also exports material group used to texture
     Assumes one active mesh at a time
     """
-    set_mode('OBJECT')
+    set_mode("OBJECT")
     output_file = os.path.join(scene_dir, fname)
     bpy.ops.export_scene.obj(filepath=output_file, use_selection=True)

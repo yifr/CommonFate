@@ -35,7 +35,18 @@
                                     "top_right": [2.25, 4.35, 2.70],
                                     "top_left": [-4.15, -2.45, 2.70]
                                 }
-
+    },
+    
+    "zoomed_in": 
+    {
+        "camera_location": [7.221433162689209, -7.063248157501221, 0.021662602201104164],
+        "camera_rotation_euler": [1.570796, 0, 0.785398],
+        "camera_sensor_width": 24,
+        "render_frame_boundaries": {"bottom_left": [-2.91, -3.66, -0.75],
+                                    "bottom_right": [3.45, 3.15, -0.75],
+                                    "top_right": [2.25, 4.35, 2.70],
+                                    "top_left": [-4.15, -2.45, 2.70]
+                                }
     }
 }
 
