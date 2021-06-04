@@ -5,18 +5,17 @@ import torchvision.models as models
 from torchvision import transforms as T
 from . import loss
 
-class ShapeNet(nn.Module):
-    
 
+class ShapeNet(nn.Module):
     def __init__(self, img_size=256, out_size=5, conv_dims=2):
         super(ShapeNet, self).__init__()
         self.img_size = img_size
         self.out_size = out_size
         self.feature_extractor = nn.Sequential(
-                            self.conv_layer(1, 32, conv_dims),
-                            self.conv_layer(32, 64, conv_dims),
-                            )
-        
+            self.conv_layer(1, 32, conv_dims),
+            self.conv_layer(32, 64, conv_dims),
+        )
+
         conv_out = int(img_size / 4 - 2) ** 2
         if conv_dims > 2:
             n_frames = 20
@@ -30,15 +29,15 @@ class ShapeNet(nn.Module):
     def conv_layer(self, in_channels, out_channels, dims):
         if dims == 2:
             layer = nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels, kernel_size=3),
-                    nn.MaxPool2d(2),
-                    nn.ReLU()
+                nn.Conv2d(in_channels, out_channels, kernel_size=3),
+                nn.MaxPool2d(2),
+                nn.ReLU(),
             )
         else:
             layer = nn.Sequential(
-                    nn.Conv3d(in_channels, out_channels, kernel_size=(3,3,3)),
-                    nn.MaxPool3d((2,2,2)),
-                    nn.ReLU(),
+                nn.Conv3d(in_channels, out_channels, kernel_size=(3, 3, 3)),
+                nn.MaxPool3d((2, 2, 2)),
+                nn.ReLU(),
             )
         return layer
 
@@ -59,7 +58,7 @@ class ShapeNet(nn.Module):
         x = self.fc3(x)
         if transform:
             x = torch.sigmoid(x) * 4
-        
+
         x = x.reshape(-1, 2)
         return x
 
@@ -76,7 +75,7 @@ class ShapeNet(nn.Module):
 
     def shape_transform(self, model_params):
         return F.sigmoid(model_params) * 4
-    
+
     def get_shape_dist(self, predicted_shape_dist):
         predicted_mean = predicted_shape_dist[..., 0]
         predicted_std = torch.clamp(predicted_shape_dist[..., 1], min=0.0001)
