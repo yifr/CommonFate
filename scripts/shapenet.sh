@@ -9,4 +9,5 @@
 #SBATCH -p tenenbaum
 #SBATCH --mem=4G
 
-python train.py --model_save_path saved_models/shapenet_prob_loss_v1.pt --run_name shapenet_prob_loss_v1 --epochs 1000 --scene_dir scenes/single_shape_plain
+python train.py --model_save_path saved_models/shapenet3d_prob_full_dataset_v1.pt --run_name shapenet3d_prob_full_dataset_v1 --conv_dims 3 --epochs 1000 --scene_dir scenes/single_shape_textured_v2 \
+        scenes/single_shape_plain --n_scenes 2000
