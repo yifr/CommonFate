@@ -5,7 +5,6 @@ import torchvision.models as models
 from torchvision import transforms as T
 from . import loss
 
-
 class ShapeNet(nn.Module):
     def __init__(self, img_size=256, out_size=5, conv_dims=2):
         super(ShapeNet, self).__init__()

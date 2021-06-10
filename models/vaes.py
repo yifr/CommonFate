@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 class VAE(nn.Module):
     def __init__(
-        self, in_channels: int, latent_dim: int, hidden_dims: List = None, **kwargs
+        self, in_channels: int, latent_dim: int, hidden_dims: list = None, **kwargs
     ) -> None:
 
         super(self).__init__()
@@ -75,7 +75,7 @@ class VAE(nn.Module):
             nn.Tanh(),
         )
 
-        def encode(self, x: torch.Tensor) -> List[torch.Tensor]:
+        def encode(self, x: torch.Tensor) -> list[torch.Tensor]:
             result = self.encoder(x)
             result = torch.flatten(result, start_dim=1)
 
@@ -96,7 +96,7 @@ class VAE(nn.Module):
             eps = torch.randn_like(std)
             return eps * std + mu
 
-        def forward(self, x: torch.Tensor, **kwargs) -> List[torch.Tensor]:
+        def forward(self, x: torch.Tensor, **kwargs) -> list[torch.Tensor]:
             mu, logvar = self.encode(x)
             z = self.reparameterize(mu, logvar)
             return [self.decode(z), x, mu, logvar]
