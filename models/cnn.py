@@ -58,7 +58,6 @@ class ShapeNet(nn.Module):
         if transform:
             x = torch.sigmoid(x) * 4
 
-        x = x.reshape(-1, 2)
         return x
 
     def inverse_transform(self, shape_params, eps=1e-4):
@@ -83,11 +82,14 @@ class ShapeNet(nn.Module):
             reinterpreted_batch_ndims=1,
         )
 
-    def prob_loss(self, gt_shape, predicted_shape_mean):
+    def prob_loss(self, predicted_shape, gt_shape):
         # gt_shape = self.inverse_transform(gt_shape)
-        loss = -self.get_shape_dist(predicted_shape_mean).log_prob(gt_shape).mean()
+        loss = -self.get_shape_dist(predicted_shape).log_prob(gt_shape).mean()
         return loss
 
+    def loss(self, predicted_shape, gt_shape):
+        mean_shape_prediction = predicted_shape.mean(axis=0)
+        return F.mse_loss(mean_shape_prediction, gt_shape)
 
 class SimpleCNN(nn.Module):
     """

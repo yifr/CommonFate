@@ -1,3 +1,4 @@
+import os
 import argparse
 import torch
 import torch.nn as nn
@@ -18,20 +19,14 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
         data = scene_loader.get_scene(scene_idx)
         frames = data["frame"]
         if args.conv_dims > 2:
-            frames = frames.reshape(1, 20, 256, 256).unsqueeze(0)
+            frames = frames.reshape(1, args.n_frames, 256, 256).unsqueeze(0)
 
         gt_shape = data["shape_params"].mean(axis=0)
 
         optimizer.zero_grad()
-        predicted_shape_dist = model(frames)
-        # print('\nGt_shape: ', gt_shape, '\t Predicted: ', predicted_shape_mean, '\n')
-        # mean_target = torch.mean(target, dim=0)
-        # shape_pred = torch.mean(shape_pred, dim=0)
-        # shape_pred = torch.sigmoid(shape_pred) * 4  # shape exponents are in the range [0, 4] -> this enforces a non-negativity
+        predicted_shape = model(frames)
+        loss = model.loss(predicted_shape, gt_shape)  
 
-        loss = model.prob_loss(
-            gt_shape, predicted_shape_dist
-        )  # F.mse_loss(shape_pred, mean_target)
         loss.backward()
         optimizer.step()
 
@@ -47,7 +42,7 @@ def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
             )
 
     running_loss /= len(scene_loader.train_idxs)
-    wandb.log({"Train Log Likelihood": running_loss})
+    wandb.log({"Train Loss": running_loss})
 
 
 def test_shapenet(args, model, device, scene_loader, epoch, best_test_score=10000):
@@ -59,23 +54,23 @@ def test_shapenet(args, model, device, scene_loader, epoch, best_test_score=1000
             data = scene_loader.get_scene(scene_idx)
             frames = data["frame"].to(device)
             if args.conv_dims > 2:
-                frames = frames.reshape(1, 20, 256, 256).unsqueeze(0)
+                frames = frames.reshape(1, args.n_frames, 256, 256).unsqueeze(0)
 
             gt_shape = data["shape_params"]
 
-            predicted_shape_dist = model(frames)
+            predicted_shape = model(frames)
 
-            loss = model.prob_loss(gt_shape, predicted_shape_dist)
+            loss = model.loss(predicted_shape, gt_shape)
             test_loss += loss
 
     test_loss /= len(scene_loader.test_idxs)
 
     print(f"\nTest set: Average loss: {test_loss:.4f}\n")
 
-    wandb.log({"Test Log Likelihood": test_loss})
+    wandb.log({"Test Loss": test_loss})
 
     if test_loss < best_test_score:
-        torch.save(model.state_dict(), args.model_save_path)
+        torch.save(model.state_dict(), os.path.join(args.model_save_path, args.model_save_name))
         best_test_score = test_loss
 
     return best_test_score
@@ -187,7 +182,7 @@ def main():
         type=int,
         default=20,
         metavar="N",
-        help="input batch size for training (default: 100)",
+        help="input batch size for training",
     )
     parser.add_argument(
         "--scene_dir",
@@ -221,17 +216,16 @@ def main():
     parser.add_argument(
         "--model_save_path",
         type=str,
-        default="saved_models/shapenet.pt",
+        default="saved_models/",
         metavar="P",
         help="path to save model",
     )
     parser.add_argument(
-        "--test-batch-size",
-        type=int,
-        default=100,
-        metavar="N",
-        help="input batch size for testing (default: 1000)",
-    )
+        "--model_save_name",
+        type=str,
+        default="shapenet.pt",
+        help="Name of model")
+
     parser.add_argument(
         "--epochs",
         type=int,
@@ -260,7 +254,7 @@ def main():
         "--seed", type=int, default=42, metavar="S", help="random seed (default: 42)"
     )
     parser.add_argument(
-        "--log-interval",
+        "--log_interval",
         type=int,
         default=10,
         metavar="N",
@@ -269,7 +263,7 @@ def main():
     parser.add_argument(
         "--pred_shape",
         type=int,
-        default=4,
+        default=2,
         metavar="P",
         help="Output size of neural network",
     )
@@ -285,12 +279,6 @@ def main():
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
-    resume_wandb = True if args.load_existing else False
-    wandb.init(settings=wandb.Settings(start_method="fork"), resume=resume_wandb)
-    if args.run_name:
-        wandb.run.name = args.run_name
-    wandb.config.update(args)
-
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -298,6 +286,8 @@ def main():
     wargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
 
     model = cnn.ShapeNet(out_size=args.pred_shape, conv_dims=args.conv_dims).to(device)
+    os.makedirs(args.model_save_path, exist_ok=True)
+
     if args.load_existing:
         model.load_state_dict(torch.load(args.model_save_path))
 
@@ -314,10 +304,16 @@ def main():
     optimizer = optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
+
+    # Start logging process
+    resume_wandb = True if args.load_existing else False
+    wandb.init(settings=wandb.Settings(start_method="fork"), resume=resume_wandb)
+    if args.run_name:
+        wandb.run.name = args.run_name
+    wandb.config.update(args)
     wandb.watch(model)
 
     print("Initialized model and data loader, beginning training...")
-
     for epoch in range(1, args.epochs + 1):
         best_test = 100000
         train_shapenet(args, model, device, scene_loader, optimizer, epoch)
