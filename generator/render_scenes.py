@@ -363,6 +363,7 @@ class BlenderScene(object):
         if texture_params.get("noise", -1) > 0:
             print("Sequencing Texture")
             texImage.image.source = "SEQUENCE"
+            texImage.image_user.frame_duration = self.n_frames
             texImage.image_user.frame_offset = -1
 
         # Link everything together

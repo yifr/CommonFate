@@ -6,6 +6,101 @@ Author: Huayi Zeng
 """
 import os
 import numpy as np
+from scipy.spatial import Delaunay
+
+
+def fexp(func, w, exponent):
+    """
+    Signed exponentiation for superquadrics.
+    Params:
+        func: function to apply
+        w: np.meshgrid: region where shape is defined
+        m: float: exponent
+    """
+    return np.sign(func(w)) * np.abs(func(w)) ** exponent
+
+
+class SuperToroid:
+    def __init__(self, epsilon, a, n=50):
+        self.epsilon = epsilon
+        self.a = a
+        self.n = n
+        self.points = self.get_points()
+        self.verts = self.get_verts()
+        self.faces = self.get_faces()
+
+    def get_points(self):
+        """
+        Compute x, y, z coordinates of shapes
+        """
+        u = np.linspace(-np.pi, np.pi, self.n)
+        v = np.linspace(-np.pi, np.pi, self.n)
+        u, v = np.meshgrid(u, v)
+
+        u = u.flatten()
+        v = v.flatten()
+
+        s, t = self.epsilon[0], self.epsilon[1]
+        x = (self.a[0] + fexp(np.cos, u, s)) * fexp(np.cos, v, t)
+        y = (self.a[0] + fexp(np.cos, u, s)) * fexp(np.sin, v, t)
+        z = fexp(np.sin, u, s)
+        return x, y, z
+
+    def get_faces(self):
+        u = np.linspace(-np.pi, np.pi, self.n)
+        v = np.linspace(-np.pi, np.pi, self.n)
+        u, v = np.meshgrid(u, v)
+
+        u = u.flatten()
+        v = v.flatten()
+
+        points2d = np.vstack([u, v]).T
+        triangulation = Delaunay(points2d)
+        return list(triangulation.simplices)
+
+    def get_verts(self):
+        x, y, z = self.points
+        return [(x[i], y[i], z[i]) for i in range(x.shape[0])]
+
+
+class SuperEllipsoid:
+    def __init__(self, epsilon, a, n=50):
+        self.epsilon = epsilon
+        self.a = a
+        self.n = n
+        self.points = self.get_points()
+        self.verts = self.get_verts()
+        self.faces = self.get_faces()
+
+    def get_points(self):
+        u = np.linspace(-np.pi / 2, np.pi / 2, self.n)
+        v = np.linspace(-np.pi, np.pi, self.n)
+        u, v = np.meshgrid(u, v)
+
+        u = u.flatten()
+        v = v.flatten()
+
+        s, t = self.epsilon[0], self.epsilon[1]
+        x = self.a[0] * fexp(np.cos, u, s) * fexp(np.cos, v, t)
+        y = self.a[1] * fexp(np.cos, u, s) * fexp(np.sin, v, t)
+        z = self.a[2] * fexp(np.sin, u, s)
+        return x, y, z
+
+    def get_faces(self):
+        u = np.linspace(-np.pi / 2, np.pi / 2, self.n)
+        v = np.linspace(-np.pi, np.pi, self.n)
+        u, v = np.meshgrid(u, v)
+
+        u = u.flatten()
+        v = v.flatten()
+
+        points2d = np.vstack([u, v]).T
+        triangulation = Delaunay(points2d)
+        return list(triangulation.simplices)
+
+    def get_verts(self):
+        x, y, z = self.points
+        return [(x[i], y[i], z[i]) for i in range(x.shape[0])]
 
 
 def save_pts(path_save, x, y, z):
@@ -48,6 +143,39 @@ def save_obj(path_save, x, y, z, threshold=-1):
                             (i + 1) * wid + j + 1,
                         )
                     )
+
+    # def get_faces_and_verts(x, y, z, threshold=-1):
+    hei, wid = x.shape[0], x.shape[1]
+    verts = []
+    faces = []
+    for i in range(hei):
+        for j in range(wid):
+            if threshold > 0:
+                if (
+                    np.abs(x[i, j]) > threshold
+                    or np.abs(y[i, j]) > threshold
+                    or np.abs(z[i, j]) > threshold
+                ):
+                    continue
+                verts.append((x[i, j], y[i, j], z[i, j]))
+            else:
+                verts.append((x[i, j], y[i, j], z[i, j]))
+        # Write face: we could not write face when we filter out vertices by threshold
+        if threshold < 0:
+            for i in range(hei - 1):
+                for j in range(wid - 1):
+                    faces.append(
+                        ((i + 1) * wid + j + 1, i * wid + j + 1 + 1, i * wid + j + 1)
+                    )
+                    faces.append(
+                        (
+                            (i + 1) * wid + j + 1 + 1,
+                            i * wid + j + 1 + 1,
+                            (i + 1) * wid + j + 1,
+                        )
+                    )
+
+    return faces, verts
 
 
 def save_obj_not_overlap(path_save, x, y, z):
@@ -146,7 +274,9 @@ def get_faces_and_verts(x, y, z, use_existing_faces=True):
                 f'Canonical face indexes could not be found at path: {os.path.join(current_path, "faces.npy")}. Falling back on default faces - this may result in unwanted errors. \
                 To correct this, extract the face indexes from an existing .obj file and store them in the same directory as superquadrics.py in a faces.npy file.'
             )
-    return faces, verts
+
+
+#     return faces, verts
 
 
 def sgn(x):
