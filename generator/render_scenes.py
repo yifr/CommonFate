@@ -1,4 +1,6 @@
 import os
+
+from numpy import random
 import bpy
 import time
 import json
@@ -281,6 +283,48 @@ class BlenderScene(object):
         obj.location = [-10, 10, 0]
 
         return
+
+    def voronoi_texture(
+        self,
+        scale=25,
+        randomness=1,
+        distance="Euclidean",
+        width=0.5,
+        obj=None,
+        material_name="texture",
+    ):
+        if obj == None:
+            obj = self.context.view_layer.objects.active
+
+        print(f"Adding {material_name} material to ", obj)
+
+        self.set_mode("EDIT")
+
+        mat = self.data.materials.new(name=material_name)
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        bsdf = nodes["Principled BSDF"]
+
+        voronoi = nodes.new(type="ShaderNodeTexVoronoi")
+        color_ramp = nodes.new(type="ShaderNodeValToRGB")
+
+        links = nodes.links
+        links.new(voronoi.outputs["Distance"], color_ramp.inputs["Fac"])
+        links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+        color_ramp.color_ramp.elements.new(0.5)
+        color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+        color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+
+        # Make sure everything is as expected
+        color_ramp.color_ramp.elements[0].position = 0
+        color_ramp.color_ramp.elements[1].position = width
+
+        color_ramp.color_ramp.interpolation = "CONSTANT"
+
+        voronoi.inputs["Scale"] = scale
+        voronoi.inputs["Randomness"] = randomness
+        voronoi.distance = distance.upper()
 
     def texture_mesh(
         self,
