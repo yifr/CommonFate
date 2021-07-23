@@ -1,0 +1,41 @@
+{
+    "objects": {
+        "s1": {
+           "shape_type": "supertoroid", 
+           "shape_params": "random",
+           "scaling_params": [1, 1, 1, 2],
+            "texture": {"type": "transparent_bands",
+                        "params": {
+                            "distortion": 6.4443,
+                            "scale": 0.667
+                        }
+                    },
+            "rotation": "random",
+            "translation": false,
+            "location": "random"
+        },
+
+        "h1": {
+            "shape_type": "superellipsoid",
+            "shape_params": "random",
+            "scaling_params": [10, 10, 10, 20],
+            "n_points": 6,
+            "child_params": {
+                "shape_type": "random",
+                "shape_params": "random",
+                "scaling_params": [1, 1, 1, 1],
+                "texture": {"type": "voronoi_texture",
+                            "params": {
+                                "randomness": 1.0,
+                                "scale": 25,
+                                "width": 5.0
+                            }
+                },
+                "rotation": "random"
+            },
+            "rotation": "random",
+            "translation": false,
+            "location": "random"
+        }
+    }
+}

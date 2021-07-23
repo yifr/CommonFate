@@ -1,109 +1,31 @@
 import os
-
-from numpy import random
 import bpy
+import sys
 import time
 import json
 import copy
 import bmesh
+import pathlib
+import logging
 import datetime
 import numpy as np
-from PIL import Image, ImageDraw
 from pyquaternion import Quaternion
-
-
-# Set up logger
-import logging
-
-FORMAT = "%(asctime)-10s %(message)s"
-logging.basicConfig(filename="render_logs", level=logging.INFO, format=FORMAT)
-
-# Add the generator directory to the path for relative Blender imports
-import sys
-import pathlib
 
 generator_path = str(pathlib.Path(__file__).parent.absolute())
 sys.path.append(generator_path)
 
 import utils
-import superquadrics
+import shapes
 import BlenderArgparse
 import textures
+import RenderEngine
 
+FORMAT = "%(asctime)-10s %(message)s"
+logging.basicConfig(filename="render_logs", level=logging.INFO, format=FORMAT)
 print(os.getcwd())
 
 
 ROOT_SCENE_DIR = "/om2/user/yyf/CommonFate/data/"
-
-
-class RenderEngine:
-    def __init__(
-        self, scene, device="CUDA", engine="CYCLES", render_size=256, samples=256
-    ):
-        self.scene = scene
-        self.device = device
-        self.engine = engine
-        self.render_size = render_size
-        self.samples = samples
-
-        if self.device == "CUDA":
-            self.activated_gpus = self.enable_gpus(scene)
-            print(f"Using following GPUs: {self.activated_gpus}")
-
-    def render(self, output_dir):
-        """
-        Renders the video to a given folder.
-        """
-        if output_dir[:-4] != "img_":
-            output_dir = os.path.join(output_dir, "img_")
-
-        self.set_render_settings()
-        self.scene.render.filepath = output_dir
-        bpy.ops.render.render(animation=True)
-
-    def set_render_settings(self):
-        # Set properties to increase speed of render time
-        scene = self.scene
-        scene.render.engine = self.engine  # use cycles for headless rendering
-        scene.render.resolution_x = self.render_size
-        scene.render.resolution_y = self.render_size
-        scene.render.image_settings.color_mode = "BW"
-        scene.render.image_settings.compression = 0
-        scene.cycles.samples = self.samples
-
-    def enable_gpus(self, scene, device_type="CUDA", use_cpus=False):
-        """
-        Sets device as GPU and adjusts rendering tile size accordingly
-        """
-        scene.render.engine = self.engine  # use cycles for headless rendering
-
-        preferences = bpy.context.preferences
-        cycles_preferences = preferences.addons["cycles"].preferences
-        cuda_devices, opencl_devices = cycles_preferences.get_devices()
-
-        if device_type == "CUDA":
-            devices = cuda_devices
-        elif device_type == "OPENCL":
-            devices = opencl_devices
-        else:
-            raise RuntimeError("Unsupported device type")
-
-        activated_gpus = []
-
-        for device in devices:
-            if device.type == "CPU":
-                device.use = use_cpus
-            else:
-                device.use = True
-                activated_gpus.append(device.name)
-
-        scene.cycles.device = "GPU"
-        cycles_preferences.compute_device_type = device_type
-
-        scene.render.tile_x = 128
-        scene.render.tile_y = 128
-
-        return activated_gpus
 
 
 class BlenderScene(object):
@@ -191,7 +113,7 @@ class BlenderScene(object):
                     json.dump(self.shape_params, f)
 
         n_points = 100
-        x, y, z = superquadrics.superellipsoid(
+        x, y, z = shapes.superellipsoid(
             shape_params["mesh_0"]["exponents"],
             shape_params["mesh_0"]["scaling"],
             n_points,
@@ -207,7 +129,7 @@ class BlenderScene(object):
             self.shape_params = shape_params
 
         x, y, z = self._generate_mesh(shape_params=shape_params)
-        faces, verts = superquadrics.get_faces_and_verts(x, y, z)
+        faces, verts = shapes.get_faces_and_verts(x, y, z)
         edges = []
 
         mesh = self.data.meshes.new("mesh")
@@ -227,106 +149,13 @@ class BlenderScene(object):
         if not os.path.exists(mesh_file):
             print("No Mesh found! Generating new shape: ")
             x, y, z = self._generate_mesh()
-            superquadrics.save_obj_not_overlap(mesh_file, x, y, z)
+            shapes.save_obj_not_overlap(mesh_file, x, y, z)
 
         mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
         new_obj = list(set(bpy.context.scene.objects) - old_objs)[0]
         return new_obj
 
-    def add_background_plane(self, texture_params={}, overwrite=True):
-        """
-        Adds plane to background and adds image texture that can be modified during animation.
-        The texture material is added with the name "Background" for later access.
-        """
-
-        mesh = bpy.data.meshes.new("Plane")
-        obj = bpy.data.objects.new("Plane", mesh)
-
-        bpy.context.collection.objects.link(obj)
-
-        bm = bmesh.new()
-        bm.from_object(obj, bpy.context.view_layer.depsgraph)
-
-        size = 40
-        bm.verts.new((size, size, 0))
-        bm.verts.new((size, -size, 0))
-        bm.verts.new((-size, size, 0))
-        bm.verts.new((-size, -size, 0))
-
-        bmesh.ops.contextual_create(bm, geom=bm.verts)
-        for f in bm.faces:
-            f.select_set(True)
-        bm.to_mesh(mesh)
-
-        obj = self.data.objects["Plane"]
-        self.set_mode("EDIT")
-        status = bpy.ops.uv.unwrap()
-
-        texture = {}
-        texture["min_diam"] = texture_params.get("min_diam", 5)
-        texture["max_diam"] = texture_params.get("max_diam", 10)
-        texture["n_dots"] = texture_params.get("n_dots", 15000)
-        texture["height"] = texture_params.get("height", 2048)
-        texture["width"] = texture_params.get("width", 2048)
-        texture["noise"] = texture_params.get("noise", 5.0)
-
-        self.texture_mesh(
-            material_name="Background",
-            texture_file="background",
-            overwrite=overwrite,
-            texture_params=texture,
-            mesh_size=size,
-            unwrap=False,
-        )
-
-        obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
-        obj.location = [-10, 10, 0]
-
-        return
-
-    def voronoi_texture(
-        self,
-        scale=25,
-        randomness=1,
-        distance="Euclidean",
-        width=0.5,
-        obj=None,
-        material_name="texture",
-    ):
-        if obj == None:
-            obj = self.context.view_layer.objects.active
-
-        print(f"Adding {material_name} material to ", obj)
-
-        self.set_mode("EDIT")
-
-        mat = self.data.materials.new(name=material_name)
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-        bsdf = nodes["Principled BSDF"]
-
-        voronoi = nodes.new(type="ShaderNodeTexVoronoi")
-        color_ramp = nodes.new(type="ShaderNodeValToRGB")
-
-        links = nodes.links
-        links.new(voronoi.outputs["Distance"], color_ramp.inputs["Fac"])
-        links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
-
-        color_ramp.color_ramp.elements.new(0.5)
-        color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-        color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
-
-        # Make sure everything is as expected
-        color_ramp.color_ramp.elements[0].position = 0
-        color_ramp.color_ramp.elements[1].position = width
-
-        color_ramp.color_ramp.interpolation = "CONSTANT"
-
-        voronoi.inputs["Scale"] = scale
-        voronoi.inputs["Randomness"] = randomness
-        voronoi.distance = distance.upper()
-
-    def texture_mesh(
+    def texture_mesh_from_file(
         self,
         obj=None,
         material_name="texture",
@@ -337,7 +166,7 @@ class BlenderScene(object):
         mesh_size=1,
     ):
         """
-        Add texture to a given object. If obj==None, take the active object
+        Add texture from an image file to a given object.
         """
         # Add material to active object if none specified
         if obj == None:
@@ -428,13 +257,82 @@ class BlenderScene(object):
 
         if obj.data.materials:
             obj.data.materials[0] = mat
-            print("overwriting material")
         else:
             obj.data.materials.append(mat)
 
             print("adding new material")
 
         print("...done texturing")
+        return
+
+    def add_background_plane(
+        self, texture_params={}, overwrite=True, use_image_texture=False
+    ):
+        """
+        Adds plane to background and adds image texture that can be modified during animation.
+        The texture material is added with the name "Background" for later access.
+        """
+
+        mesh = bpy.data.meshes.new("Plane")
+        obj = bpy.data.objects.new("Plane", mesh)
+
+        bpy.context.collection.objects.link(obj)
+
+        bm = bmesh.new()
+        bm.from_object(obj, bpy.context.view_layer.depsgraph)
+
+        size = 40
+        bm.verts.new((size, size, 0))
+        bm.verts.new((size, -size, 0))
+        bm.verts.new((-size, size, 0))
+        bm.verts.new((-size, -size, 0))
+
+        bmesh.ops.contextual_create(bm, geom=bm.verts)
+        for f in bm.faces:
+            f.select_set(True)
+        bm.to_mesh(mesh)
+
+        obj = self.data.objects["Plane"]
+        self.set_mode("EDIT")
+        status = bpy.ops.uv.unwrap()
+
+        if use_image_texture:
+            texture = {}
+            texture["min_diam"] = texture_params.get("min_diam", 5)
+            texture["max_diam"] = texture_params.get("max_diam", 10)
+            texture["n_dots"] = texture_params.get("n_dots", 15000)
+            texture["height"] = texture_params.get("height", 2048)
+            texture["width"] = texture_params.get("width", 2048)
+            texture["noise"] = texture_params.get("noise", 5.0)
+
+            self.texture_mesh(
+                material_name="Background",
+                texture_file="background",
+                overwrite=overwrite,
+                texture_params=texture,
+                mesh_size=size,
+                unwrap=False,
+            )
+
+        else:
+            scale = texture_params.get("scale", 25)
+            randomness = texture_params.get("randomness", 1)
+            distance = texture_params.get("distance", "Euclidean")
+            colors = texture_params.get("colors", [(0, 0, 0, 1), (1, 1, 1, 1)])
+            width = texture_params.get("width", 0.5)
+
+            voronoi_texture(
+                scale,
+                randomness,
+                distance,
+                colors,
+                width,
+                obj,
+                material_name="BACKGROUND_PLANE",
+            )
+        obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
+        obj.location = [-10, 10, 0]
+
         return
 
     def set_background_color(self, color=(255, 255, 255, 1)):

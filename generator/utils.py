@@ -1,5 +1,6 @@
 import os
 import bpy
+import shapes
 
 
 def set_mode(mode, obj_type="MESH"):
@@ -38,6 +39,20 @@ def delete_all(obj_type):
             o.select_set(False)
     set_mode("OBJECT")
     bpy.ops.object.delete()
+
+
+def load_mesh(self, mesh_id=0, save=False):
+    old_objs = set(self.objects)
+    mesh_file = os.path.join(self.scene_dir, f"mesh_{mesh_id}.obj")
+
+    if not os.path.exists(mesh_file):
+        print("No Mesh found! Generating new shape: ")
+        x, y, z = self._generate_mesh()
+        shapes.save_obj_not_overlap(mesh_file, x, y, z)
+
+    mesh = bpy.ops.import_scene.obj(filepath=mesh_file)
+    new_obj = list(set(bpy.context.scene.objects) - old_objs)[0]
+    return new_obj
 
 
 def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
