@@ -56,8 +56,18 @@ def voronoi_texture(
 
     voronoi = nodes.new(type="ShaderNodeTexVoronoi")
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
+    mapping_node = nodes.new(type="ShaderNodeMapping")
+    coordinate_node = nodes.new(type="ShaderNodeTexCoord")
 
+    ##############
+    # Link Nodes
+    ##############
     links = mat.node_tree.links
+
+    # Coordinate Texture -> Mapping Node --> Noise Texture
+    links.new(coordinate_node.outputs["Object"], mapping_node.inputs[0])
+    links.new(mapping_node.outputs[0], voronoi.inputs[0])
+
     links.new(voronoi.outputs["Distance"], color_ramp.inputs["Fac"])
     links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
 
@@ -119,24 +129,27 @@ def transparent_bands(
 
     print(f"Adding {material_name} material to ", obj)
 
-    scene.set_mode("EDIT")
+    # scene.set_mode("EDIT")
 
     mat = scene.data.materials.new(name=material_name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     bsdf = nodes["Principled BSDF"]
 
-    ######################################
-    # Turn off some default BSDF settings
-    ######################################
+    ###########################################################
+    # Set some default BSDF settings
+    # to make sure material isn't too transparent or glossy
+    ##########################################################
     bsdf.inputs["Specular"].default_value = 0
-    bsdf.inputs["Roughness"].default_value = 0
+    bsdf.inputs["Roughness"].default_value = 1
+    bsdf.inputs["Transmission"].default_value = 1
     bsdf.inputs["Sheen Tint"].default_value = 0
+    mat.shadow_method = "NONE"
 
     ##############
     # Create Nodes
     ##############
-    mix_shader = nodes.new(type="ShaderNodeMixRGB")
+    mix_shader = nodes.new(type="ShaderNodeMixShader")
     transparent_bsdf = nodes.new(type="ShaderNodeBsdfTransparent")
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
     try:
@@ -194,8 +207,7 @@ def transparent_bands(
             noise_texture.inputs[param].default_value = texture_params[param]
         except KeyError:
             print(
-                f"Invalid texture parameter: {param} for texture type:\
-                {noise_texture_type}."
+                f"Invalid texture parameter: {param} for texture type: {noise_texture_type}."
             )
 
     if scene.renderer.engine == "BLENDER_EEVEE":
@@ -359,8 +371,8 @@ def noisy_dot_texture_png(
     return img
 
 
-def add_texture(scene, obj, texture_params):
-    texture_type = texture_params.get("type")
+def add_texture(scene, obj, texture_config):
+    texture_type = texture_config.get("type")
     if texture_type not in available_textures:
         raise ValueError(
             f"""Texture type: {texture_type} is not an option. 
@@ -368,21 +380,25 @@ def add_texture(scene, obj, texture_params):
             {', '.join(available_textures)}"""
         )
 
+    texture_params = texture_config.get("params")
     if texture_type == "voronoi_texture":
-        scale = texture_params.get("scale", 25)
-        randomness = texture_params.get("randomness", 1)
-        distance = texture_params.get("distance", "Euclidean")
-        width = texture_params.get("width", 0.5)
-        colors = texture_params.get("colors", [(0, 0, 0, 1), (1, 1, 1, 1)])
+        scale = texture_params.get("Scale", "random")
+        randomness = texture_params.get("Randomness", 1)
+        distance = texture_params.get("Distance", "Euclidean")
+        width = texture_params.get("Width", 0.5)
+        colors = texture_params.get("Colors", [(0, 0, 0, 1), (1, 1, 1, 1)])
         material_name = texture_params.get("material_name", "voronoi_texture")
 
+        if type(scale) == list:
+            scale = np.random.uniform(scale[0], scale[1])
+        if scale == "random":
+            scale = np.random.uniform(3, 10)
         voronoi_texture(
             scene, scale, randomness, distance, colors, width, obj, material_name
         )
 
     elif texture_type == "transparent_bands":
-        params = texture_params.get("params")
-        transparent_bands(scene, texture_params=params, obj=obj)
+        transparent_bands(scene, texture_params=texture_params, obj=obj)
 
     else:
         pass

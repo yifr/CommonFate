@@ -14,6 +14,7 @@ import logging
 import datetime
 import numpy as np
 from pyquaternion import Quaternion
+from mathutils.bvhtree import BVHTree
 
 generator_path = str(pathlib.Path(__file__).parent.absolute())
 sys.path.append(generator_path)
@@ -137,13 +138,13 @@ class BlenderScene(object):
         Deletes all instances of a given object type:
         obj_type: "MESH" | "LIGHT" | "CAMERA" ...
         """
-        for obj in self.objects:
-            if obj.type == obj_type:
-                obj.select_set(True)
-            else:
-                obj.select_set(False)
         self.set_mode("OBJECT", obj_type)
-        bpy.ops.object.delete()
+        bpy.ops.object.select_all(action="DESELECT")
+        for collection in bpy.data.collections:
+            for obj in collection.all_objects:
+                if obj.type == obj_type:
+                    obj.select_set(True)
+                    bpy.ops.object.delete(use_global=True)
 
     def set_mode(self, mode, obj_type="MESH"):
         for obj in self.objects:
@@ -159,6 +160,26 @@ class BlenderScene(object):
                 Please check to make sure your config is correct."
             )
         return object_config
+
+    # show objects that are intersecting
+    def intersection_check(self, location, size, collection):
+        if collection:
+            col = self.data.collections.get(collection)
+            if not col:
+                col = self.data.collections.new(collection)
+                self.context.scene.collection.children.link(col)
+        else:
+            col = self.data.collections.get("Collection")
+
+        obj_list = col.all_objects
+        # check every object for intersection with every other object
+        for obj in obj_list:
+            new_loc = np.array(obj.location)
+            distance = np.sqrt(np.sum(np.abs(new_loc - location)))
+            if distance < size:
+                return True
+
+        return False
 
     def add_mesh(self, id, verts, faces, collection=None):
         """
@@ -216,7 +237,12 @@ class BlenderScene(object):
                 child_shape_type = child_params.get("shape_type")
                 child_shape_params = child_params.get("shape_params")
                 child_scaling_params = child_params.get("scaling_params")
+                intersection_size = child_scaling_params[-1]
                 for i, vert in enumerate(verts):
+                    intersection = self.intersection_check(vert, 0.5, object_id)
+                    if intersection:
+                        continue
+
                     child_object = shapes.create_shape(
                         child_shape_type,
                         child_shape_params,
@@ -226,6 +252,8 @@ class BlenderScene(object):
                     )
 
                     child_id = f"{object_id}_{i}"
+
+                    print(f"Adding child ID: {child_id}")
                     child_verts = child_object.verts
                     child_faces = child_object.faces
                     object_config["children"][child_id] = {
@@ -239,6 +267,7 @@ class BlenderScene(object):
                     )
 
                     obj.location = vert
+                    i += 1
 
             # Otherwise just add a mesh in normally and update the config to
             # reflect the shape parameters
@@ -248,7 +277,6 @@ class BlenderScene(object):
                 object_config["scaling_params"] = object.scaling_params
 
                 self.add_mesh(object_id, verts, faces)
-
         return
 
     def add_background_plane(self, texture_params={}):
@@ -368,13 +396,14 @@ class BlenderScene(object):
         print("...done.")
         return
 
-    def rotate_hierarchy(self, hierarchy_config, collection_id):
+    def rotate_hierarchy(self, hierarchy_config, collection_id, rotation="random"):
         """
         Updates the location of every child in hierarchy to respect rotated
         vertex location.
         Params:
             hierarchy_config: dict: contains dictionary of children and parameters for hierarchy
             collection_id: str: name of hierarchy (key to the hierarchy_config value)
+            rotation: str: "random" | "noisy" | "none"
         """
 
         n_frames = self.n_frames
@@ -406,14 +435,18 @@ class BlenderScene(object):
             hierarchy_config["axis"][frame] = rotation_axis
 
             tmp_verts = np.matmul(verts, rmat)
-
+            if rotation == "noisy":
+                tmp_verts += np.random.uniform(-1, 1, size=tmp_verts.shape)
             for i, vert in enumerate(tmp_verts):
                 child_id = f"{collection_id}_{i}"
+                if not hierarchy_config["children"].get(child_id):
+                    continue
+
                 child_config = hierarchy_config["children"][child_id]
                 if not isinstance(child_config.get("location"), np.ndarray):
                     child_config["location"] = np.zeros(shape=[n_frames, 3])
-                child_config["location"][frame] = vert
 
+                child_config["location"][frame] = vert
                 # Animate location change
                 child_obj = self.data.objects[child_id]
                 child_obj.location = vert
@@ -435,7 +468,7 @@ class BlenderScene(object):
 
             if rotation:
                 if is_parent:
-                    self.rotate_hierarchy(object_config, object_id)
+                    self.rotate_hierarchy(object_config, object_id, rotation)
                     child_params = object_config.get("child_params")
                     if child_params.get("rotation"):
                         for i, child_id in enumerate(children):
@@ -610,7 +643,7 @@ def main(args):
 
         # Set camera properties for scene
         camera = scene.data.objects["Camera"]
-        camera.location = [21.554821014404297, -20.291574478149414, 16.243793487548828]
+        camera.location = [18.554821014404297, -18.291574478149414, 12.243793487548828]
         camera.rotation_euler = [
             1.1093190908432007,
             9.305318826591247e-08,

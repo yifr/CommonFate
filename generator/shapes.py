@@ -82,7 +82,7 @@ class SuperQuadric:
             z = fexp(np.sin, u, s)
 
         elif self.shape_type == "superellipsoid":
-            a1, a2, a3 = self.scaling_params
+            a1, a2, a3 = self.scaling_params[:3]
             x = a1 * fexp(np.cos, u, s) * fexp(np.cos, v, t)
             y = a2 * fexp(np.cos, u, s) * fexp(np.sin, v, t)
             z = a3 * fexp(np.sin, u, s)
