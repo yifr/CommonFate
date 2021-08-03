@@ -71,7 +71,7 @@ parser.add_argument(
     "--output_img_name", type=str, help="Name for output images", default="img"
 )
 parser.add_argument(
-    "--render_size", type=int, help="size of .png file to render", default=256
+    "--render_size", type=int, help="size of .png file to render", default=512
 )
 parser.add_argument(
     "--samples",
@@ -140,11 +140,29 @@ class BlenderScene(object):
         """
         self.set_mode("OBJECT", obj_type)
         bpy.ops.object.select_all(action="DESELECT")
-        for collection in bpy.data.collections:
-            for obj in collection.all_objects:
-                if obj.type == obj_type:
-                    obj.select_set(True)
-                    bpy.ops.object.delete(use_global=True)
+        for obj in bpy.context.scene.objects:
+            if obj.type == obj_type:
+                self.delete(obj)
+
+    def delete(self, obj):
+        obj.select_set(True)
+        bpy.ops.object.delete()
+
+        for block in bpy.data.meshes:
+            if block.users == 0:
+                bpy.data.meshes.remove(block)
+
+        for block in bpy.data.materials:
+            if block.users == 0:
+                bpy.data.materials.remove(block)
+
+        for block in bpy.data.textures:
+            if block.users == 0:
+                bpy.data.textures.remove(block)
+
+        for block in bpy.data.images:
+            if block.users == 0:
+                bpy.data.images.remove(block)
 
     def set_mode(self, mode, obj_type="MESH"):
         for obj in self.objects:
@@ -161,24 +179,143 @@ class BlenderScene(object):
             )
         return object_config
 
-    # show objects that are intersecting
-    def intersection_check(self, location, size, collection):
-        if collection:
-            col = self.data.collections.get(collection)
-            if not col:
-                col = self.data.collections.new(collection)
-                self.context.scene.collection.children.link(col)
+    def bmesh_copy_from_object(
+        self, obj, transform=True, triangulate=True, apply_modifiers=False
+    ):
+        """
+        Returns a transformed, triangulated copy of the mesh
+        """
+
+        assert obj.type == "MESH"
+
+        if apply_modifiers and obj.modifiers:
+            me = obj.to_mesh(bpy.context.scene, True, "PREVIEW", calc_tessface=False)
+            bm = bmesh.new()
+            bm.from_mesh(me)
+            bpy.data.meshes.remove(me)
         else:
-            col = self.data.collections.get("Collection")
+            me = obj.data
+            if obj.mode == "EDIT":
+                bm_orig = bmesh.from_edit_mesh(me)
+                bm = bm_orig.copy()
+            else:
+                bm = bmesh.new()
+                bm.from_mesh(me)
 
-        obj_list = col.all_objects
+        # Remove custom data layers to save memory
+        for elem in (bm.faces, bm.edges, bm.verts, bm.loops):
+            for layers_name in dir(elem.layers):
+                if not layers_name.startswith("_"):
+                    layers = getattr(elem.layers, layers_name)
+                    for layer_name, layer in layers.items():
+                        layers.remove(layer)
+
+        if transform:
+            bm.transform(obj.matrix_world)
+
+        if triangulate:
+            bmesh.ops.triangulate(bm, faces=bm.faces)
+
+        return bm
+
+    def bmesh_check_intersect_objects(self, obj, obj2):
+        """
+        Check if any faces intersect with the other object
+
+        returns a boolean
+        """
+        assert obj != obj2
+
+        # Triangulate
+        bm = self.bmesh_copy_from_object(obj, transform=True, triangulate=True)
+        bm2 = self.bmesh_copy_from_object(obj2, transform=True, triangulate=True)
+
+        # If bm has more edges, use bm2 instead for looping over its edges
+        # (so we cast less rays from the simpler object to the more complex object)
+        if len(bm.edges) > len(bm2.edges):
+            bm2, bm = bm, bm2
+
+        # Create a real mesh (lame!)
+        scene = bpy.context.scene
+        me_tmp = bpy.data.meshes.new(name="~temp~")
+        bm2.to_mesh(me_tmp)
+        bm2.free()
+        obj_tmp = bpy.data.objects.new(name=me_tmp.name, object_data=me_tmp)
+        bpy.context.collection.objects.link(obj_tmp)
+        bpy.context.view_layer.update()
+        ray_cast = obj_tmp.ray_cast
+
+        intersect = False
+
+        EPS_NORMAL = 0.000001
+        EPS_CENTER = 0.01  # should always be bigger
+
+        # for ed in me_tmp.edges:
+        for ed in bm.edges:
+            v1, v2 = ed.verts
+
+            # setup the edge with an offset
+            co_1 = v1.co.copy()
+            co_2 = v2.co.copy()
+            co_mid = (co_1 + co_2) * 0.5
+            no_mid = (v1.normal + v2.normal).normalized() * EPS_NORMAL
+            co_1 = co_1.lerp(co_mid, EPS_CENTER) + no_mid
+            co_2 = co_2.lerp(co_mid, EPS_CENTER) + no_mid
+
+            success, co, no, index = ray_cast(co_1, co_2 - co_1, ed.calc_length())
+            if success:
+                intersect = True
+                break
+
+        bpy.context.collection.objects.unlink(obj_tmp)
+        bpy.data.objects.remove(obj_tmp)
+        bpy.data.meshes.remove(me_tmp)
+
+        bpy.context.view_layer.update()
+
+        return intersect
+
+    def intersection_check(self, obj, collection=None):
         # check every object for intersection with every other object
-        for obj in obj_list:
-            new_loc = np.array(obj.location)
-            distance = np.sqrt(np.sum(np.abs(new_loc - location)))
-            if distance < size:
-                return True
+        self.set_mode("OBJECT")
+        bpy.context.view_layer.update()
 
+        for col in self.data.collections:
+            obj_list = col.all_objects
+            for obj_next in obj_list:
+                if obj == obj_next or obj_next.type != "MESH":
+                    print(obj, obj_next, "continuing")
+                    continue
+
+                def dist(loc1, loc2):
+                    loc1 = np.array(loc1)
+                    loc2 = np.array(loc2)
+                    return np.sqrt(np.sum((loc1 - loc2) ** 2))
+
+                obj_dist = dist(
+                    obj.matrix_world.translation, obj_next.matrix_world.translation
+                )
+
+                if obj_dist < 0.05:
+                    print("Objects are too close -- intersection detected")
+                    return True
+
+                # bm1 = self.bmesh_copy_from_object(obj)
+                # bm2 = self.bmesh_copy_from_object(obj_next)
+
+                # bm1.transform(obj.matrix_world)
+                # bm2.transform(obj_next.matrix_world)
+
+                # # make BVH tree from BMesh of objects
+                # obj_now_BVHtree = BVHTree.FromBMesh(bm1)
+                # obj_next_BVHtree = BVHTree.FromBMesh(bm2)
+
+                # # get intersecting pairs
+                # inter = obj_now_BVHtree.overlap(obj_next_BVHtree)
+                # if len(inter) > 10:
+                #     return True
+
+        print("No intersections detected")
         return False
 
     def add_mesh(self, id, verts, faces, collection=None):
@@ -213,19 +350,27 @@ class BlenderScene(object):
         If the BlenderScene was not initialized with a config,
         one must be specified when calling the function.
         """
+        self.set_mode("OBJECT")
         full_object_config = self.get_object_config()
 
         # Add in each object from the config
-        for object_id in full_object_config:
+        object_ids = full_object_config.copy()
+        for object_id in object_ids:
             object_config = full_object_config[object_id]
-            params = object_config.get("shape_params")
+            shape_params = object_config.get("shape_params")
+            scaling_params = object_config.get("scaling_params")
             shape_type = object_config.get("shape_type")
             child_params = object_config.get("child_params")
             n_points = object_config.get("n_points", 50)
+            location = object_config.get("location")
 
-            is_parent = False if not child_params else True
+            is_parent = True if child_params else False
             object = shapes.create_shape(
-                shape_type, params, is_parent, n_points=n_points
+                shape_type,
+                shape_params,
+                scaling_params,
+                is_parent=is_parent,
+                n_points=n_points,
             )
             faces = object.faces
             verts = object.verts
@@ -233,15 +378,14 @@ class BlenderScene(object):
             # Create meshes along the parent shape manifold
             # and update the config accordingly
             if is_parent:
-                object_config["children"] = {}
+                object_config["children"] = []
                 child_shape_type = child_params.get("shape_type")
                 child_shape_params = child_params.get("shape_params")
                 child_scaling_params = child_params.get("scaling_params")
-                intersection_size = child_scaling_params[-1]
-                for i, vert in enumerate(verts):
-                    intersection = self.intersection_check(vert, 0.5, object_id)
-                    if intersection:
-                        continue
+
+                # intersection_size = child_scaling_params[-1]
+                i = 0
+                for vert in verts:
 
                     child_object = shapes.create_shape(
                         child_shape_type,
@@ -250,24 +394,34 @@ class BlenderScene(object):
                         False,
                         n_points,
                     )
-
                     child_id = f"{object_id}_{i}"
 
-                    print(f"Adding child ID: {child_id}")
                     child_verts = child_object.verts
                     child_faces = child_object.faces
-                    object_config["children"][child_id] = {
-                        "shape_type": child_object.shape_type,
-                        "shape_params": child_object.shape_params,
-                        "scaling_params": child_object.scaling_params,
-                    }
-
                     obj = self.add_mesh(
                         child_id, child_verts, child_faces, collection=object_id
                     )
 
                     obj.location = vert
-                    i += 1
+                    obj.keyframe_insert("location", frame=1)
+
+                    bpy.context.view_layer.update()
+                    intersection = self.intersection_check(obj, object_id)
+                    if intersection:
+                        self.delete(obj)
+                    else:
+                        print(f"Adding child ID: {child_id}")
+                        print(obj.location)
+                        full_object_config[child_id] = {
+                            "shape_type": child_object.shape_type,
+                            "shape_params": child_object.shape_params,
+                            "scaling_params": child_object.scaling_params,
+                            "texture": child_params.get("texture"),
+                            "rotation": child_params.get("rotation"),
+                        }
+                        object_config["children"].append(child_id)
+
+                        i += 1
 
             # Otherwise just add a mesh in normally and update the config to
             # reflect the shape parameters
@@ -277,6 +431,12 @@ class BlenderScene(object):
                 object_config["scaling_params"] = object.scaling_params
 
                 self.add_mesh(object_id, verts, faces)
+                if location:
+                    if location == "random":
+                        location = np.random.uniform(-10, 10, 3)
+                    self.objects[object_id].location = location
+                    self.objects[object_id].keyframe_insert("location", frame=1)
+
         return
 
     def add_background_plane(self, texture_params={}):
@@ -425,6 +585,8 @@ class BlenderScene(object):
         verts = shape.verts
 
         print(f"Rotating children in hierarchy: {collection_id}...")
+        print([x for x in self.data.objects])
+
         for frame, degree in enumerate(degrees):
             q = Quaternion(axis=rotation_axis, degrees=degree)
             rmat = q.rotation_matrix
@@ -437,6 +599,7 @@ class BlenderScene(object):
             tmp_verts = np.matmul(verts, rmat)
             if rotation == "noisy":
                 tmp_verts += np.random.uniform(-1, 1, size=tmp_verts.shape)
+
             for i, vert in enumerate(tmp_verts):
                 child_id = f"{collection_id}_{i}"
                 if not hierarchy_config["children"].get(child_id):
@@ -463,17 +626,13 @@ class BlenderScene(object):
         for object_id in full_object_config:
             object_config = full_object_config[object_id]
             children = object_config.get("children")
-            is_parent = True if children else False
+            child_params = object_config.get("child_params")
+            is_parent = True if child_params else False
             rotation = object_config.get("rotation")
 
             if rotation:
                 if is_parent:
                     self.rotate_hierarchy(object_config, object_id, rotation)
-                    child_params = object_config.get("child_params")
-                    if child_params.get("rotation"):
-                        for i, child_id in enumerate(children):
-                            child = children[child_id]
-                            self.rotate_object(child_id, child)
                 else:
                     self.rotate_object(object_id, object_config)
 
@@ -565,6 +724,8 @@ class BlenderScene(object):
         # Clear any previous meshes
         self.set_mode("OBJECT")
         self.delete_all(obj_type="MESH")
+        self.delete_all(obj_type="OBJECT")
+
         self.delete_all(obj_type="LIGHT")
 
         # Set direct and ambient light

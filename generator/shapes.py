@@ -75,11 +75,12 @@ class SuperQuadric:
             """
             return np.sign(func(w)) * np.abs(func(w)) ** exponent
 
+        a1, a2, a3 = self.scaling_params[:3]
         if self.shape_type == "supertoroid":
-            a1 = self.scaling_params[-1]
-            x = (a1 + fexp(np.cos, u, s)) * fexp(np.cos, v, t)
-            y = (a1 + fexp(np.cos, u, s)) * fexp(np.sin, v, t)
-            z = fexp(np.sin, u, s)
+            a4 = self.scaling_params[-1]
+            x = (a4 + a1 * fexp(np.cos, u, s)) * fexp(np.cos, v, t)
+            y = (a4 + a2 * fexp(np.cos, u, s)) * fexp(np.sin, v, t)
+            z = a3 * fexp(np.sin, u, s)
 
         elif self.shape_type == "superellipsoid":
             a1, a2, a3 = self.scaling_params[:3]
@@ -101,13 +102,42 @@ class SuperQuadric:
         triangulation = Delaunay(points2d)
         return list(triangulation.simplices)
 
-    def get_verts(self):
+    def get_verts(self, eps=0.001):
+        """
+        Return vertices of shape
+        if parent shape, remove vertices that are closer than `eps`
+        """
         x, y, z = self.points
-        return [(x[i], y[i], z[i]) for i in range(x.shape[0])]
+        verts = []
+
+        def dist(a, b):
+            return np.sqrt(np.sum((np.array(a) - np.array(b)) ** 2))
+
+        tmp_verts = [(x[i], y[i], z[i]) for i in range(x.shape[0])]
+
+        if not self.is_parent:
+            return np.array(tmp_verts)
+
+        for candidate in tmp_verts:
+            if not verts:
+                verts.append(candidate)
+            filter = False
+            for existing in verts:
+                if dist(candidate, existing) < eps:
+                    filter = True
+                    break
+
+            if not filter:
+                verts.append(candidate)
+
+        return np.array(verts)
 
     def sample_points(self, n):
         verts = self.verts
         return np.random.choice(verts, n, replace=False)
+
+    def __str__(self):
+        return f"{self.shape_type}: \n\tParams={self.shape_params}\n\tScaling={self.scaling_params}"
 
 
 ############################################################
@@ -157,3 +187,15 @@ def create_shape(
         )
 
     return shape
+
+
+if __name__ == "__main__":
+    s = create_shape("superellipsoid", "random", scaling_params=[10, 10, 10])
+    from mpl_toolkits import mplot3d
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    idxs = np.random.choice(len(s.points[0]), 100, replace=False)
+    ax.scatter3D(s.points[0][idxs], s.points[1][idxs], s.points[2][idxs])
+    plt.show()

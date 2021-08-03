@@ -9,35 +9,65 @@ except ImportError:
         No procedural textures will be available."
     )
 
-procedural_textures = ["voronoi_texture", "glass_texture", "transparent_bands"]
-
-available_textures = [
-    "voronoi_texture",
+TEXTURE_FUNCTIONS = [
+    "base_texture",
+    "transparent_texture",
     "glass_texture",
     "dot_texture_png",
     "ordered_texture_png",
     "noisy_dot_texture_png",
-    "transparent_bands",
 ]
 
 
-def voronoi_texture(
+PROCEDURAL_TEXTURES = ["voronoi", "wave", "magic", "checker", "noise", "brick"]
+
+
+def Shader(name):
+    return "ShaderNodeTex" + name.capitalize()
+
+
+TEXTURE_MAPS = {
+    "ShaderNodeTexVoronoi": {"Scale": [1.25, 20], "Randomness": [0, 1]},
+    "ShaderNodeTexWave": {
+        "Scale": [2, 10],
+        "Distortion": [0, 20],
+        "Detail": [0, 10],
+        "Detail Scale": [0, 5],
+    },
+    "ShaderNodeTexNoise": {
+        "Scale": [1, 30],
+        "Detail": [1, 2],
+        "Roughness": [0, 1],
+        "Distortion": [0, 5],
+    },
+    "ShaderNodeTexChecker": {"Scale": [2, 50]},
+    "ShaderNodeTexBrick": {
+        "Scale": [1, 40],
+        "Mortar Size": [0, 0.025],
+        "Mortar Smooth": [0, 1],
+        "Bias": [-1, 0],
+        "Brick Width": [0.02, 3],
+        "Row Height": [0.25, 1],
+    },
+}
+
+
+def base_texture(
     scene,
-    scale=25,
-    randomness=1,
-    distance="Euclidean",
-    colors=[(0, 0, 0, 1), (1, 1, 1, 1)],
+    texture_type,
+    texture_params,
+    material_color=None,
     width=0.5,
     obj=None,
     material_name="texture",
 ):
     """
-    Appends procedural voronoi polka dot texture to mesh.
+    Appends procedural texture polka dot texture to mesh.
     Params:
         scene: (BlenderScene): The BlenderScene in which the mesh lives
         scale: (int) controls the number of dots
         randomness: (int) controls how random the dots are arranged
-        distance: (str) controls distance function for voronoi texture
+        distance: (str) controls distance function for texture texture
         colors: (tuple list) colors of texture
         width: relative size of dots
         obj:
@@ -54,7 +84,13 @@ def voronoi_texture(
     nodes = mat.node_tree.nodes
     bsdf = nodes["Principled BSDF"]
 
-    voronoi = nodes.new(type="ShaderNodeTexVoronoi")
+    bsdf.inputs["Specular"].default_value = 0
+    bsdf.inputs["Roughness"].default_value = 1
+    bsdf.inputs["Transmission"].default_value = 0
+    bsdf.inputs["Sheen Tint"].default_value = 0
+    mat.shadow_method = "NONE"
+
+    texture = nodes.new(type=texture_type)
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
     mapping_node = nodes.new(type="ShaderNodeMapping")
     coordinate_node = nodes.new(type="ShaderNodeTexCoord")
@@ -66,38 +102,48 @@ def voronoi_texture(
 
     # Coordinate Texture -> Mapping Node --> Noise Texture
     links.new(coordinate_node.outputs["Object"], mapping_node.inputs[0])
-    links.new(mapping_node.outputs[0], voronoi.inputs[0])
+    links.new(mapping_node.outputs[0], texture.inputs[0])
 
-    links.new(voronoi.outputs["Distance"], color_ramp.inputs["Fac"])
+    links.new(texture.outputs[0], color_ramp.inputs["Fac"])
     links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
 
     color_ramp.color_ramp.elements.new(0.5)
-    # Should probably check colors or improve the system
-    color_ramp.color_ramp.elements[0].color = colors[0]
-    color_ramp.color_ramp.elements[1].color = colors[1]
 
-    # Make sure everything is as expected
+    color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+    color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+
+    # Evenly interpolate between color/white spots
     color_ramp.color_ramp.elements[0].position = 0
     color_ramp.color_ramp.elements[1].position = width
 
     color_ramp.color_ramp.interpolation = "CONSTANT"
 
-    voronoi.inputs["Scale"].default_value = scale
-    voronoi.inputs["Randomness"].default_value = randomness
-    voronoi.distance = distance.upper()
+    if material_color:
+        bsdf.inputs["Base Color"].default_value = material_color
+
+    for param in texture_params:
+        param_val = texture_params[param]
+        if type(param_val) == list:
+            param_val = np.random.uniform(param_val[0], param_val[1])
+        try:
+            texture.inputs[param].default_value = param_val
+        except KeyError:
+            print(
+                f"Invalid texture parameter: {param} for texture type: {texture_type}."
+            )
 
     if obj.data.materials:
         obj.data.materials[0] = mat
     else:
         obj.data.materials.append(mat)
 
-    print("Added Voronoi Texture...")
+    print("Added {texture_type} Texture...")
     return
 
 
-def transparent_bands(
+def transparent_texture(
     scene,
-    noise_texture_type="ShaderNodeTexMagic",
+    texture_type="ShaderNodeTexMagic",
     texture_params={},
     material_name="transparent_bands",
     material_color=None,
@@ -113,7 +159,7 @@ def transparent_bands(
         noise_texture: (str):
                             Controls shape of transparent regions.
                             Must be the correct name of a ShaderNode
-                            (ie; 'ShaderNodeTexVoronoi' | 'ShaderNodeTexMagic')
+                            (ie; 'ShaderNodeTextexture' | 'ShaderNodeTexMagic')
         texture_params: (dict):
                             Parameters to change on noise texture.
         material_name: (str):
@@ -142,7 +188,7 @@ def transparent_bands(
     ##########################################################
     bsdf.inputs["Specular"].default_value = 0
     bsdf.inputs["Roughness"].default_value = 1
-    bsdf.inputs["Transmission"].default_value = 1
+    bsdf.inputs["Transmission"].default_value = 0
     bsdf.inputs["Sheen Tint"].default_value = 0
     mat.shadow_method = "NONE"
 
@@ -153,10 +199,10 @@ def transparent_bands(
     transparent_bsdf = nodes.new(type="ShaderNodeBsdfTransparent")
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
     try:
-        noise_texture = nodes.new(type=noise_texture_type)
+        noise_texture = nodes.new(type=texture_type)
     except ValueError:
         print(
-            f"Texture Type: '{noise_texture_type}' is not a valid ShaderNode. \
+            f"Texture Type: '{texture_type}' is not a valid ShaderNode. \
             Please check the BPY manual (https://docs.blender.org/api/current/bpy.types.ShaderNode.html) \
             to find a valid texture type. Defaulting to MagicTexture"
         )
@@ -198,16 +244,22 @@ def transparent_bands(
     color_ramp.color_ramp.elements.new(0.5)
     color_ramp.color_ramp.elements[0].position = 0
     color_ramp.color_ramp.elements[1].position = 0.5
-    color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-    color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+    color_ramp.color_ramp.elements[0].color = (1, 1, 1, 1)
+    color_ramp.color_ramp.elements[1].color = (0, 0, 0, 1)
+
+    transparent_bsdf.inputs["Color"].default_value = (0, 0, 0, 1)
 
     # Modify noise texture params
     for param in texture_params:
+        param_val = texture_params[param]
+        if type(param_val) == list:
+            param_val = np.random.uniform(param_val[0], param_val[1])
+
         try:
-            noise_texture.inputs[param].default_value = texture_params[param]
+            noise_texture.inputs[param].default_value = param_val
         except KeyError:
             print(
-                f"Invalid texture parameter: {param} for texture type: {noise_texture_type}."
+                f"Invalid texture parameter: {param} for texture type: {texture_type}."
             )
 
     if scene.renderer.engine == "BLENDER_EEVEE":
@@ -372,36 +424,49 @@ def noisy_dot_texture_png(
 
 
 def add_texture(scene, obj, texture_config):
+
     texture_type = texture_config.get("type")
-    if texture_type not in available_textures:
+    if texture_type == "random":
+        texture_type = np.random.choice(PROCEDURAL_TEXTURES)
+
+    if texture_type not in PROCEDURAL_TEXTURES:
         raise ValueError(
             f"""Texture type: {texture_type} is not an option. 
             Please specify a texture type from the following list: 
-            {', '.join(available_textures)}"""
+            {', '.join(PROCEDURAL_TEXTURES)}"""
         )
 
-    texture_params = texture_config.get("params")
-    if texture_type == "voronoi_texture":
-        scale = texture_params.get("Scale", "random")
-        randomness = texture_params.get("Randomness", 1)
-        distance = texture_params.get("Distance", "Euclidean")
-        width = texture_params.get("Width", 0.5)
-        colors = texture_params.get("Colors", [(0, 0, 0, 1), (1, 1, 1, 1)])
-        material_name = texture_params.get("material_name", "voronoi_texture")
+    texture_params = texture_config.get("params", {})
+    shader = Shader(texture_type)
+    shader_params = TEXTURE_MAPS[shader]
+    for param in shader_params:
+        if param not in texture_params:
+            shader_range = shader_params[param]
+            texture_params[param] = np.random.uniform(shader_range[0], shader_range[1])
 
-        if type(scale) == list:
-            scale = np.random.uniform(scale[0], scale[1])
-        if scale == "random":
-            scale = np.random.uniform(3, 10)
-        voronoi_texture(
-            scene, scale, randomness, distance, colors, width, obj, material_name
+    width = texture_params.get("Width", 0.5)
+    color = texture_params.get("material_color", (0, 0, 0, 1))
+    material_name = texture_params.get("material_name", "texture")
+
+    transparent = texture_config.get("transparent")
+    if transparent:
+        transparent_texture(
+            scene,
+            texture_type=shader,
+            texture_params=texture_params,
+            material_color=color,
+            obj=obj,
         )
-
-    elif texture_type == "transparent_bands":
-        transparent_bands(scene, texture_params=texture_params, obj=obj)
-
     else:
-        pass
+        base_texture(
+            scene,
+            texture_type=shader,
+            texture_params=texture_params,
+            width=width,
+            obj=obj,
+            material_color=color,
+            material_name=material_name,
+        )
 
     return
 

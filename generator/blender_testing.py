@@ -71,11 +71,11 @@ for i in range(20):
         bpy.data.objects["test8_%d_%d"%(i, j)].location = ((i - 10) * dx, j * dy, 0)
 """
 
-shape = shapes.SuperQuadric("superellipsoid", [1, 2], [10, 10, 10])
+shape = shapes.SuperQuadric("superellipsoid", [1, 2], [10, 10, 10], n_points=5)
 verts = shape.get_verts()
-shapename = "tt0 "
+shapename = "tt1"
 for i, vert in enumerate(verts):
-    temp = superquadrics.SuperEllipsoid([1, 2], [1, 1, 1])
+    temp = shapes.SuperQuadric("superellipsoid", [1, 2], [1, 1, 1])
     add_mesh(f"{shapename}_{i}", temp.verts, temp.faces)
     bpy.data.objects[f"{shapename}_{i}"].location = vert
     bpy.data.objects[f"{shapename}_{i}"].keyframe_insert(data_path="location", frame=1)
@@ -83,7 +83,7 @@ for i, vert in enumerate(verts):
 
 from pyquaternion import Quaternion
 
-n = 6
+n = 5
 rotation_axis = [0, 1, 0]
 degrees = np.linspace(0, 120, 120)
 verts = np.array(verts)
