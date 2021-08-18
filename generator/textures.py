@@ -27,28 +27,29 @@ def Shader(name):
 
 
 TEXTURE_MAPS = {
-    "ShaderNodeTexVoronoi": {"Scale": [1.25, 20], "Randomness": [0, 1]},
+    "ShaderNodeTexVoronoi": {"Scale": [1.25, 10], "Randomness": [0, 1]},
     "ShaderNodeTexWave": {
-        "Scale": [2, 10],
-        "Distortion": [0, 20],
-        "Detail": [0, 10],
+        "Scale": [0.25, 3],
+        "Distortion": [0, 7.5],
+        "Detail": [0, 5],
         "Detail Scale": [0, 5],
     },
     "ShaderNodeTexNoise": {
-        "Scale": [1, 30],
+        "Scale": [1, 10],
         "Detail": [1, 2],
         "Roughness": [0, 1],
-        "Distortion": [0, 5],
+        "Distortion": [0, 4],
     },
-    "ShaderNodeTexChecker": {"Scale": [2, 50]},
+    "ShaderNodeTexChecker": {"Scale": [2, 30]},
     "ShaderNodeTexBrick": {
-        "Scale": [1, 40],
+        "Scale": [1, 10],
         "Mortar Size": [0, 0.025],
         "Mortar Smooth": [0, 1],
         "Bias": [-1, 0],
-        "Brick Width": [0.02, 3],
+        "Brick Width": [0.02, 2],
         "Row Height": [0.25, 1],
     },
+    "ShaderNodeTexMagic": {"Scale": [2, 5], "Distortion": [0.5, 10]},
 }
 
 
@@ -137,7 +138,7 @@ def base_texture(
     else:
         obj.data.materials.append(mat)
 
-    print("Added {texture_type} Texture...")
+    print(f"Added {texture_type} Texture...")
     return
 
 
@@ -172,8 +173,6 @@ def transparent_texture(
     """
     if obj == None:
         obj = scene.context.view_layer.objects.active
-
-    print(f"Adding {material_name} material to ", obj)
 
     # scene.set_mode("EDIT")
 
@@ -244,19 +243,15 @@ def transparent_texture(
     color_ramp.color_ramp.elements.new(0.5)
     color_ramp.color_ramp.elements[0].position = 0
     color_ramp.color_ramp.elements[1].position = 0.5
-    color_ramp.color_ramp.elements[0].color = (1, 1, 1, 1)
-    color_ramp.color_ramp.elements[1].color = (0, 0, 0, 1)
+    color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+    color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
 
-    transparent_bsdf.inputs["Color"].default_value = (0, 0, 0, 1)
+    transparent_bsdf.inputs["Color"].default_value = (1, 1, 1, 1)
 
     # Modify noise texture params
     for param in texture_params:
-        param_val = texture_params[param]
-        if type(param_val) == list:
-            param_val = np.random.uniform(param_val[0], param_val[1])
-
         try:
-            noise_texture.inputs[param].default_value = param_val
+            noise_texture.inputs[param].default_value = texture_params[param]
         except KeyError:
             print(
                 f"Invalid texture parameter: {param} for texture type: {texture_type}."
@@ -270,7 +265,7 @@ def transparent_texture(
     else:
         obj.data.materials.append(mat)
 
-    print("Added Transparent Texture...")
+    print(f"Added Transparent Texture to {obj}...")
     return
 
 
@@ -423,8 +418,8 @@ def noisy_dot_texture_png(
     return img
 
 
-def add_texture(scene, obj, texture_config):
-
+def add_texture(scene, obj, tex_config):
+    texture_config = tex_config.copy()
     texture_type = texture_config.get("type")
     if texture_type == "random":
         texture_type = np.random.choice(PROCEDURAL_TEXTURES)
@@ -445,16 +440,19 @@ def add_texture(scene, obj, texture_config):
             texture_params[param] = np.random.uniform(shader_range[0], shader_range[1])
 
     width = texture_params.get("Width", 0.5)
-    color = texture_params.get("material_color", (0, 0, 0, 1))
+    material_color = texture_params.get("material_color")
     material_name = texture_params.get("material_name", "texture")
 
     transparent = texture_config.get("transparent")
     if transparent:
+        if not material_color:
+            material_color = (0, 0, 0, 1)
+        print("Generating Transparent Object texture")
         transparent_texture(
             scene,
             texture_type=shader,
             texture_params=texture_params,
-            material_color=color,
+            material_color=material_color,
             obj=obj,
         )
     else:
@@ -464,11 +462,12 @@ def add_texture(scene, obj, texture_config):
             texture_params=texture_params,
             width=width,
             obj=obj,
-            material_color=color,
+            material_color=material_color,
             material_name=material_name,
         )
 
-    return
+    texture_config["params"] = texture_params
+    return texture_config
 
 
 if __name__ == "__main__":

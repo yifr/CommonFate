@@ -168,10 +168,6 @@ def create_shape(
         else:
             scaling_params = [1, 1, 1]
 
-        shape = SuperQuadric(
-            shape_type, shape_params, scaling_params, n_points, is_parent
-        )
-
     elif type(shape_params) == dict:
         shape_params = shape_params.get("shape_params")
         if shape_params == "random":
@@ -182,9 +178,7 @@ def create_shape(
         if shape_type == "random":
             shape_type = random_parameter_assignment("shape_type")
 
-        shape = SuperQuadric(
-            shape_type, shape_params, scaling_params, n_points, is_parent
-        )
+    shape = SuperQuadric(shape_type, shape_params, scaling_params, n_points, is_parent)
 
     return shape
 

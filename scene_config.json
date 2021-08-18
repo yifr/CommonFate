@@ -1,15 +1,5 @@
 {
     "objects": {
-        "s1": {
-            "shape_type": "random",
-            "shape_params": "random",
-            "scaling_params": [1,1,1,2],
-            "texture": {"type": "voronoi",
-                        "transparent": true
-            },
-            "rotation": "random",
-            "location": [3, 2, -4]
-        },
         "h1": {
             "shape_type": "superellipsoid",
             "shape_params": "random",
@@ -19,10 +9,10 @@
                 "shape_type": "random",
                 "shape_params": "random",
                 "scaling_params": [1, 1, 1, 2],
-                "texture": {"type": "wave"},
+                "texture": {"type": "random"},
                 "rotation": true
             },
-            "rotation": false,
+            "rotation": true,
             "translation": false
         }
     }

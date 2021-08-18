@@ -1,0 +1,44 @@
+{
+    "objects": {
+        "s1": {
+            "shape_type": "random",
+            "shape_params": "random",
+            "scaling_params": [1,1,1,2],
+            "texture": {"type": "voronoi",
+                        "transparent": true
+            },
+            "rotation": "random",
+            "location": "random"
+        },
+        "s2": {
+            "shape_type": "random",
+            "shape_params": "random",
+            "scaling_params": [1,1,1,2],
+            "texture": {"type": "random",
+                        "transparent": false
+            },
+            "rotation": "random",
+            "location": "random"
+        },
+        "s3": {
+            "shape_type": "random",
+            "shape_params": "random",
+            "scaling_params": [1,1,1,2],
+            "texture": {"type": "random",
+                        "transparent": true
+            },
+            "rotation": "random",
+            "location": "random"
+        },
+        "s4": {
+            "shape_type": "random",
+            "shape_params": "random",
+            "scaling_params": [1,1,1,2],
+            "texture": {"type": "random",
+                        "transparent": false
+            },
+            "rotation": "random",
+            "location": "random"
+        }
+    }
+}

@@ -1,6 +1,5 @@
 import os
 
-from numpy.core.numeric import full
 import bpy
 import pdb
 import sys
@@ -8,11 +7,12 @@ import time
 import json
 import copy
 import bmesh
-import pathlib
 import pickle
+import pathlib
 import logging
 import datetime
 import numpy as np
+from pprint import pprint
 from pyquaternion import Quaternion
 from mathutils.bvhtree import BVHTree
 
@@ -21,8 +21,9 @@ sys.path.append(generator_path)
 
 import utils
 import shapes
-import BlenderArgparse
+import configs
 import textures
+import BlenderArgparse
 from rendering import RenderEngine
 
 FORMAT = "%(asctime)-10s %(message)s"
@@ -170,7 +171,7 @@ class BlenderScene(object):
                 self.context.view_layer.objects.active = obj
                 bpy.ops.object.mode_set(mode=mode)
 
-    def get_object_config(self):
+    def get_all_object_configs(self):
         object_config = self.scene_config.get("objects")
         if not object_config:
             raise ValueError(
@@ -284,7 +285,6 @@ class BlenderScene(object):
             obj_list = col.all_objects
             for obj_next in obj_list:
                 if obj == obj_next or obj_next.type != "MESH":
-                    print(obj, obj_next, "continuing")
                     continue
 
                 def dist(loc1, loc2):
@@ -297,7 +297,9 @@ class BlenderScene(object):
                 )
 
                 if obj_dist < 0.05:
-                    print("Objects are too close -- intersection detected")
+                    print(
+                        f"{obj.name} is too close to {obj_next.name} -- intersection detected"
+                    )
                     return True
 
                 # bm1 = self.bmesh_copy_from_object(obj)
@@ -315,7 +317,6 @@ class BlenderScene(object):
                 # if len(inter) > 10:
                 #     return True
 
-        print("No intersections detected")
         return False
 
     def add_mesh(self, id, verts, faces, collection=None):
@@ -351,12 +352,12 @@ class BlenderScene(object):
         one must be specified when calling the function.
         """
         self.set_mode("OBJECT")
-        full_object_config = self.get_object_config()
+        all_object_configs = self.get_all_object_configs()
 
         # Add in each object from the config
-        object_ids = full_object_config.copy()
+        object_ids = all_object_configs.copy()
         for object_id in object_ids:
-            object_config = full_object_config[object_id]
+            object_config = all_object_configs[object_id]
             shape_params = object_config.get("shape_params")
             scaling_params = object_config.get("scaling_params")
             shape_type = object_config.get("shape_type")
@@ -391,8 +392,8 @@ class BlenderScene(object):
                         child_shape_type,
                         child_shape_params,
                         child_scaling_params,
-                        False,
-                        n_points,
+                        is_parent=False,
+                        n_points=n_points,
                     )
                     child_id = f"{object_id}_{i}"
 
@@ -409,34 +410,43 @@ class BlenderScene(object):
                     intersection = self.intersection_check(obj, object_id)
                     if intersection:
                         self.delete(obj)
+
                     else:
                         print(f"Adding child ID: {child_id}")
-                        print(obj.location)
-                        full_object_config[child_id] = {
+                        all_object_configs[child_id] = {
                             "shape_type": child_object.shape_type,
                             "shape_params": child_object.shape_params,
                             "scaling_params": child_object.scaling_params,
                             "texture": child_params.get("texture"),
                             "rotation": child_params.get("rotation"),
+                            "parent_id": object_id,
                         }
                         object_config["children"].append(child_id)
 
                         i += 1
 
+                if len(object_config["children"]) == 0:
+                    del all_object_configs[object_id]
+
             # Otherwise just add a mesh in normally and update the config to
             # reflect the shape parameters
-            if not is_parent:
+            is_child = object_config.get("parent_id")
+            if not is_parent and not is_child:
                 object_config["shape_params"] = object.shape_params
                 object_config["shape_type"] = object.shape_type
                 object_config["scaling_params"] = object.scaling_params
 
                 self.add_mesh(object_id, verts, faces)
-                if location:
-                    if location == "random":
-                        location = np.random.uniform(-10, 10, 3)
-                    self.objects[object_id].location = location
-                    self.objects[object_id].keyframe_insert("location", frame=1)
+                if location is None or location == "random":
+                    loc_x = np.random.uniform(5, 12)
+                    loc_y = np.random.uniform(-14, 6)
+                    loc_z = np.random.uniform(0, 10)
+                    location = (loc_x, loc_y, loc_z)
 
+                self.objects[object_id].location = location
+                self.objects[object_id].keyframe_insert("location", frame=1)
+
+        print(all_object_configs.keys())
         return
 
     def add_background_plane(self, texture_params={}):
@@ -453,7 +463,7 @@ class BlenderScene(object):
         bm = bmesh.new()
         bm.from_object(obj, bpy.context.view_layer.depsgraph)
 
-        size = 100
+        size = 300
         bm.verts.new((size, size, 0))
         bm.verts.new((size, -size, 0))
         bm.verts.new((-size, size, 0))
@@ -472,7 +482,7 @@ class BlenderScene(object):
         textures.add_texture(texture_params)
 
         obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
-        obj.location = [-10, 10, 0]
+        obj.location = [-30, 30, 0]
 
         return
 
@@ -567,6 +577,7 @@ class BlenderScene(object):
         """
 
         n_frames = self.n_frames
+        object_config = self.get_all_object_configs()
         hierarchy_config["rotation_quaternion"] = np.zeros(shape=[n_frames, 4])
         hierarchy_config["rotation_matrix"] = np.zeros(shape=[n_frames, 3, 3])
         hierarchy_config["angle"] = np.zeros(shape=[n_frames, 1])
@@ -585,7 +596,6 @@ class BlenderScene(object):
         verts = shape.verts
 
         print(f"Rotating children in hierarchy: {collection_id}...")
-        print([x for x in self.data.objects])
 
         for frame, degree in enumerate(degrees):
             q = Quaternion(axis=rotation_axis, degrees=degree)
@@ -602,10 +612,10 @@ class BlenderScene(object):
 
             for i, vert in enumerate(tmp_verts):
                 child_id = f"{collection_id}_{i}"
-                if not hierarchy_config["children"].get(child_id):
+                if child_id not in hierarchy_config["children"]:
                     continue
 
-                child_config = hierarchy_config["children"][child_id]
+                child_config = object_config[child_id]
                 if not isinstance(child_config.get("location"), np.ndarray):
                     child_config["location"] = np.zeros(shape=[n_frames, 3])
 
@@ -622,10 +632,9 @@ class BlenderScene(object):
         if not scene_config:
             scene_config = self.scene_config
 
-        full_object_config = self.get_object_config()
-        for object_id in full_object_config:
-            object_config = full_object_config[object_id]
-            children = object_config.get("children")
+        all_object_configs = self.get_all_object_configs()
+        for object_id in all_object_configs:
+            object_config = all_object_configs[object_id]
             child_params = object_config.get("child_params")
             is_parent = True if child_params else False
             rotation = object_config.get("rotation")
@@ -639,17 +648,13 @@ class BlenderScene(object):
         return
 
     def add_textures(self, scene_config=None):
-        full_object_config = self.get_object_config()
-        for object_id in full_object_config:
-            object_config = full_object_config[object_id]
+        all_object_configs = self.get_all_object_configs()
+        for object_id in all_object_configs:
+            object_config = all_object_configs[object_id]
             children = object_config.get("children")
             is_parent = True if children else False
             if is_parent:
-                child_config = object_config.get("child_params")
-                child_texture = child_config.get("texture")
-                for child_id in object_config["children"]:
-                    obj = self.data.objects[child_id]
-                    textures.add_texture(self, obj, child_texture)
+                continue
             else:
                 texture_config = object_config.get("texture")
                 obj = self.data.objects[object_id]
@@ -782,13 +787,21 @@ def main(args):
         os.mkdir(args.root_dir)
         print("Created root directory: ", args.root_dir)
 
-    with open(args.scene_config, "r") as f:
-        scene_config = json.load(f)
+    if args.scene_config != "random":
+        with open(args.scene_config, "r") as f:
+            scene_config = json.load(f)
+        print("Loaded scene config: ")
+        pprint(scene_config)
 
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, "scene_%03d" % scene_num)
         os.makedirs(scene_dir, exist_ok=True)
         logging.info("Processing scene: {}...".format(scene_dir))
+
+        if args.scene_config == "random":
+            scene_config = configs.generate_random_config()
+            print("Generated random scene config: ")
+            pprint(scene_config)
 
         # Create a scene and initialize some basic properties
         scene = BlenderScene(
