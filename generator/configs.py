@@ -8,7 +8,7 @@ def flip(weight=0.5):
 def generate_random_config(max_shapes=6, hierarchy_freq=0.5, transparent_freq=0.2):
     config = {"objects": {}}
     n_objects = np.random.randint(1, max_shapes)
-    
+
     hierarchy = flip(hierarchy_freq)
     if hierarchy:
         transparent = flip(transparent_freq)
@@ -19,7 +19,6 @@ def generate_random_config(max_shapes=6, hierarchy_freq=0.5, transparent_freq=0.
             "texture": {"type": "random", "transparent": transparent},
             "rotation": flip(0.5),
             "translation": False,
-            "location": "random",
         }
 
         n_points = np.random.randint(low=3, high=5)

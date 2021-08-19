@@ -41,10 +41,7 @@ parser.add_argument(
     "--n_frames", type=int, help="Number of frames to render per scene", default=10
 )
 parser.add_argument(
-    "--start_scene",
-    type=int,
-    help="Scene number to begin rendering from",
-    default=0,
+    "--start_scene", type=int, help="Scene number to begin rendering from", default=0,
 )
 parser.add_argument(
     "--experiment_name", type=str, help="Experiment name", default="galaxy_scene_v1"
@@ -296,7 +293,7 @@ class BlenderScene(object):
                     obj.matrix_world.translation, obj_next.matrix_world.translation
                 )
 
-                if obj_dist < 0.05:
+                if obj_dist < 0.5:
                     print(
                         f"{obj.name} is too close to {obj_next.name} -- intersection detected"
                     )
@@ -400,7 +397,10 @@ class BlenderScene(object):
                     child_verts = child_object.verts
                     child_faces = child_object.faces
                     obj = self.add_mesh(
-                        child_id, verts=child_verts, faces=child_faces, collection=object_id
+                        child_id,
+                        verts=child_verts,
+                        faces=child_faces,
+                        collection=object_id,
                     )
 
                     obj.location = vert
