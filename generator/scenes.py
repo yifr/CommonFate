@@ -373,8 +373,8 @@ class BlenderScene(object):
                 is_parent=is_parent,
                 n_points=n_points,
             )
-            faces = shape.get_faces()
-            verts = shape.get_verts()
+            faces = shape.faces
+            verts = shape.verts
 
             # Create meshes along the parent shape manifold
             # and update the config accordingly
@@ -397,8 +397,8 @@ class BlenderScene(object):
                     )
                     child_id = f"{object_id}_{i}"
 
-                    child_verts = child_object.get_verts()
-                    child_faces = child_object.get_faces()
+                    child_verts = child_object.verts
+                    child_faces = child_object.faces
                     obj = self.add_mesh(
                         child_id, verts=child_verts, faces=child_faces, collection=object_id
                     )
