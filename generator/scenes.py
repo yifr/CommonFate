@@ -366,15 +366,15 @@ class BlenderScene(object):
             location = object_config.get("location")
 
             is_parent = True if child_params else False
-            object = shapes.create_shape(
-                shape_type,
-                shape_params,
-                scaling_params,
+            shape = shapes.create_shape(
+                shape_type=shape_type,
+                shape_params=shape_params,
+                scaling_params=scaling_params,
                 is_parent=is_parent,
                 n_points=n_points,
             )
-            faces = object.faces
-            verts = object.verts
+            faces = shape.get_faces()
+            verts = shape.get_verts()
 
             # Create meshes along the parent shape manifold
             # and update the config accordingly
@@ -389,18 +389,18 @@ class BlenderScene(object):
                 for vert in verts:
 
                     child_object = shapes.create_shape(
-                        child_shape_type,
-                        child_shape_params,
-                        child_scaling_params,
+                        shape_type=child_shape_type,
+                        shape_params=child_shape_params,
+                        scaling_params=child_scaling_params,
                         is_parent=False,
                         n_points=n_points,
                     )
                     child_id = f"{object_id}_{i}"
 
-                    child_verts = child_object.verts
-                    child_faces = child_object.faces
+                    child_verts = child_object.get_verts()
+                    child_faces = child_object.get_faces()
                     obj = self.add_mesh(
-                        child_id, child_verts, child_faces, collection=object_id
+                        child_id, verts=child_verts, faces=child_faces, collection=object_id
                     )
 
                     obj.location = vert
@@ -432,11 +432,8 @@ class BlenderScene(object):
             # reflect the shape parameters
             is_child = object_config.get("parent_id")
             if not is_parent and not is_child:
-                object_config["shape_params"] = object.shape_params
-                object_config["shape_type"] = object.shape_type
-                object_config["scaling_params"] = object.scaling_params
 
-                self.add_mesh(object_id, verts, faces)
+                self.add_mesh(object_id, verts=verts, faces=faces)
                 if location is None or location == "random":
                     loc_x = np.random.uniform(5, 12)
                     loc_y = np.random.uniform(-14, 6)
@@ -445,6 +442,10 @@ class BlenderScene(object):
 
                 self.objects[object_id].location = location
                 self.objects[object_id].keyframe_insert("location", frame=1)
+
+            object_config["shape_params"] = shape.shape_params
+            object_config["shape_type"] = shape.shape_type
+            object_config["scaling_params"] = shape.scaling_params
 
         print(all_object_configs.keys())
         return

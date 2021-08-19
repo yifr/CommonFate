@@ -174,11 +174,11 @@ def create_shape(
             shape_params = random_parameter_assignment("shape_params")
         scaling_params = shape_params.get("scaling_params")
         if scaling_params == "random":
-            scaling_params = random_parameter_assignment("scaling_params")
+            scaling_params = random_parameter_assignment("scaling_params", is_parent=is_parent)
         if shape_type == "random":
             shape_type = random_parameter_assignment("shape_type")
 
-    shape = SuperQuadric(shape_type, shape_params, scaling_params, n_points, is_parent)
+    shape = SuperQuadric(shape_type=shape_type, shape_params=shape_params, scaling_params=scaling_params, n_points=n_points, is_parent=is_parent)
 
     return shape
 
