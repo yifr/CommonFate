@@ -9,7 +9,7 @@ def generate_random_config(max_shapes=6, hierarchy_freq=0.5, transparent_freq=0.
     config = {"objects": {}}
     n_objects = np.random.randint(1, max_shapes)
 
-    hierarchy = flip(hierarchy_freq)
+    hierarchy = True  # flip(hierarchy_freq)
     if hierarchy:
         transparent = flip(transparent_freq)
         child_params = {

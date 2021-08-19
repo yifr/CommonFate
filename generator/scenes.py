@@ -41,7 +41,10 @@ parser.add_argument(
     "--n_frames", type=int, help="Number of frames to render per scene", default=10
 )
 parser.add_argument(
-    "--start_scene", type=int, help="Scene number to begin rendering from", default=0,
+    "--start_scene",
+    type=int,
+    help="Scene number to begin rendering from",
+    default=0,
 )
 parser.add_argument(
     "--experiment_name", type=str, help="Experiment name", default="galaxy_scene_v1"
@@ -390,7 +393,7 @@ class BlenderScene(object):
                         shape_params=child_shape_params,
                         scaling_params=child_scaling_params,
                         is_parent=False,
-                        n_points=n_points,
+                        n_points=50,
                     )
                     child_id = f"{object_id}_{i}"
 

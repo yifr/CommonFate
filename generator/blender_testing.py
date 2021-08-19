@@ -54,7 +54,8 @@ def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
 
 # shape = superquadrics.SuperEllipsoid([0.5, 2.5], [1])
 # add_mesh("test", shape.verts, shape.faces)
-
+shape = shapes.SuperQuadric("supertoroid", shape_params=[1.59864339, 3.80445551, 0.83916191], scaling_params=[1,1,1,2])
+add_mesh("test", verts=shape.verts, faces=shape.faces)
 """
 dx, dy = 6, 6
 
@@ -70,7 +71,7 @@ for i in range(20):
         add_mesh("test8_%d_%d"%(i, j), shape.verts, shape.faces)
         bpy.data.objects["test8_%d_%d"%(i, j)].location = ((i - 10) * dx, j * dy, 0)
 """
-
+"""
 shape = shapes.SuperQuadric("superellipsoid", [1, 2], [10, 10, 10], n_points=5)
 verts = shape.get_verts()
 shapename = "tt1"
@@ -100,3 +101,4 @@ for frame, degree in enumerate(degrees):
         bpy.data.objects[f"{shapename}_{i}"].keyframe_insert(
             data_path="location", frame=frame
         )
+"""
