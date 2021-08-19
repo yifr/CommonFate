@@ -150,9 +150,9 @@ def random_parameter_assignment(parameter, **kwargs):
         return np.random.choice(["superellipsoid", "supertoroid"])
     if parameter == "scaling_params":
         if kwargs.get("is_parent"):
-            return [10, 10, 10, 10]
+            return [5, 5, 5, 10]
         else:
-            return [1, 1, 1, 1]
+            return [1, 1, 1, 2]
 
 
 def create_shape(
@@ -164,9 +164,9 @@ def create_shape(
     if type(shape_params) == str and shape_params == "random":
         shape_params = np.random.uniform(0.01, 4.0, 3)
         if is_parent:
-            scaling_params = [10, 10, 10]
+            scaling_params = [5, 5, 5, 10]
         else:
-            scaling_params = [1, 1, 1]
+            scaling_params = [1, 1, 1, 2]
 
     elif type(shape_params) == dict:
         shape_params = shape_params.get("shape_params")
@@ -184,7 +184,7 @@ def create_shape(
 
 
 if __name__ == "__main__":
-    s = create_shape("superellipsoid", "random", scaling_params=[10, 10, 10])
+    s = create_shape("superellipsoid", "random", scaling_params=[5, 5, 5, 10])
     from mpl_toolkits import mplot3d
     import matplotlib.pyplot as plt
 

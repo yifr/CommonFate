@@ -28,7 +28,7 @@ def generate_random_config(max_shapes=6, hierarchy_freq=0.5, transparent_freq=0.
         object_params = {
             "shape_type": "random",
             "shape_params": "random",
-            "scaling_params": [8, 8, 8, 16],
+            "scaling_params": [5, 5, 5, 8],
             "n_points": n_points,
             "child_params": child_params,
             "rotation": True,
