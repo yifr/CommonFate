@@ -1,73 +1,76 @@
 import os
+import time
 import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import models, transforms as T
-from models import cnn
+from models import cnn, vaes
 from data_loader import SceneLoader
 import wandb
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
-def train_shapenet(args, model, device, scene_loader, optimizer, epoch):
+def train_shapenet(args, model, loss_fn, scene_loader, optimizer, epoch):
     model.train()
     running_loss = 0
+    optimizer.zero_grad()
     for batch_idx, scene_idx in enumerate(tqdm(scene_loader.train_idxs)):
         data = scene_loader.get_scene(scene_idx)
         frames = data["frame"]
         if args.conv_dims > 2:
             frames = frames.reshape(1, args.n_frames, 256, 256).unsqueeze(0)
 
+        predicted_shape = model(frames)
         gt_shape = data["shape_params"].mean(axis=0)
 
-        optimizer.zero_grad()
-        predicted_shape = model(frames)
-        loss = model.loss(predicted_shape, gt_shape)  
+        losses = loss_fn(predicted_shape, gt_shape) 
+        running_loss += losses['loss'].item()
 
+        loss = losses['loss'] / args.minibatch_size # Normalize loss for gradient accumulation
         loss.backward()
-        optimizer.step()
 
-        running_loss += loss.item()
+        if (batch_idx + 1) % args.minibatch_size == 0 or batch_idx == (len(scene_loader.train_idxs) - 1):
+            optimizer.step()
+            optimizer.zero_grad()
 
-        if batch_idx % args.log_interval == 0:
+        if (batch_idx + 1) % args.log_interval == 0:
             frames_completed = batch_idx * args.n_frames
             total_frames = len(scene_loader.train_idxs) * args.n_frames
             percent_complete = 100 * batch_idx / len(scene_loader.train_idxs)
 
             print(
-                f"Train Epoch: {epoch} [{frames_completed}/{total_frames} frames ({percent_complete:.0f}%)]\tLoss: {running_loss / (batch_idx + 1):.6f}"
+                f"Train Epoch: {epoch} [{frames_completed}/{total_frames} frames ({percent_complete:.0f}%)] \
+                \tLoss: {running_loss / (batch_idx + 1):.4f}", flush=True
             )
 
-    running_loss /= len(scene_loader.train_idxs)
-    wandb.log({"Train Loss": running_loss})
+    wandb.log({"Train Loss": running_loss / batch_idx, "epoch": epoch})
+    running_loss = 0
 
-
-def test_shapenet(args, model, device, scene_loader, epoch, best_test_score=10000):
+def test_shapenet(args, model, loss_fn, scene_loader, epoch, best_test_score=10000):
     model.eval()
     test_loss = 0
 
     with torch.no_grad():
-        for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
+        for _, scene_idx in enumerate(scene_loader.test_idxs):
             data = scene_loader.get_scene(scene_idx)
-            frames = data["frame"].to(device)
+            frames = data["frame"].to(args.device)
             if args.conv_dims > 2:
                 frames = frames.reshape(1, args.n_frames, 256, 256).unsqueeze(0)
 
-            gt_shape = data["shape_params"]
-
             predicted_shape = model(frames)
+            gt_shape = data["shape_params"].mean(axis=0)
 
-            loss = model.loss(predicted_shape, gt_shape)
+            loss = loss_fn(predicted_shape, gt_shape)
             test_loss += loss
 
     test_loss /= len(scene_loader.test_idxs)
 
     print(f"\nTest set: Average loss: {test_loss:.4f}\n")
 
-    wandb.log({"Test Loss": test_loss})
+    wandb.log({"Test Loss": test_loss, "epoch": epoch})
 
     if test_loss < best_test_score:
         torch.save(model.state_dict(), os.path.join(args.model_save_path, args.model_save_name))
@@ -75,112 +78,13 @@ def test_shapenet(args, model, device, scene_loader, epoch, best_test_score=1000
 
     return best_test_score
 
-
-def train_posenet(args, model, device, scene_loader, optimizer, epoch):
-    model.train()
-    running_mse = 0
-    running_geodesic = 0
-    running_chance = 0
-    for batch_idx, scene_idx in enumerate(tqdm(scene_loader.train_idxs)):
-        data = scene_loader.get_scene(scene_idx)
-        frames = data["frame"].to(device)
-
-        if batch_idx == 0:
-            fig = plt.figure(figsize=(16, 12))
-            img = frames[0, 0]
-            img = img.cpu().detach().numpy()
-            plt.matshow(img, cmap="gray")
-            plt.savefig("example_frame.png")
-
-        target_key = "rotation"
-        if data["rotation"][0].shape == (3, 3):
-            target_key = "quaternion"
-
-        target = data[target_key].to(device)
-        optimizer.zero_grad()
-        pred = model(frames)
-
-        loss_dict = model.loss(pred, target)
-        mse = loss_dict["mse"]
-        geodesic = loss_dict["geodesic"]
-        chance = loss_dict["chance"]
-
-        mse.backward()
-        optimizer.step()
-        running_mse += mse.item()
-        running_geodesic += geodesic.item()
-        running_chance += chance.item()
-
-        if batch_idx % args.log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} frames ({:.0f}%)]\tloss: {:.6f}\tGeodesic: {:.6f}".format(
-                    epoch,
-                    batch_idx * len(frames),
-                    len(scene_loader.train_idxs) * len(frames),
-                    100.0 * batch_idx / len(scene_loader.train_idxs),
-                    mse.item(),
-                    geodesic.item(),
-                )
-            )
-
-    running_mse /= len(scene_loader.train_idxs)
-    running_geodesic /= len(scene_loader.train_idxs)
-    running_chance /= len(scene_loader.train_idxs)
-
-    wandb.log(
-        {
-            "Train loss": running_mse,
-            "Train Geodesic": running_geodesic,
-            "Chance loss (train)": running_chance,
-        }
-    )
-
-
-def test_posenet(args, model, device, scene_loader):
-    model.eval()
-    test_loss_mse = 0
-    test_loss_geodesic = 0
-
-    example_images = []
-    with torch.no_grad():
-        for batch_idx, scene_idx in enumerate(scene_loader.test_idxs):
-            data = scene_loader.get_scene(scene_idx)
-            frames = data["frame"].to(device)
-
-            target_key = "rotation"
-            if data["rotation"][0].shape == (3, 3):
-                target_key = "quaternion"
-
-            target = data[target_key].to(device)
-
-            output = model(frames)
-            # sum up batch loss
-            losses = model.loss(output, target)
-
-            test_loss_mse += losses["mse"]
-            test_loss_geodesic += losses["geodesic"]
-
-    test_loss_mse /= len(scene_loader.test_idxs)
-    test_loss_geodesic /= len(scene_loader.test_idxs)
-
-    print(
-        "\nTest set: Average loss: {:.4f}, Geodesic: {:.4f}\n".format(
-            test_loss_mse, test_loss_geodesic
-        )
-    )
-
-    wandb.log({"Test loss": test_loss_mse, "Test Geodesic": test_loss_geodesic})
-
-    torch.save(model.state_dict(), args.model_save_path)
-
-
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description="CommonFate State Inference")
     parser.add_argument(
-        "--batch-size",
+        "--minibatch_size",
         type=int,
-        default=20,
+        default=8,
         metavar="N",
         help="input batch size for training",
     )
@@ -248,7 +152,10 @@ def main():
         help="L2 norm (default: 0.01)",
     )
     parser.add_argument(
-        "--no-cuda", action="store_true", default=False, help="disables CUDA training"
+        "--device", 
+        type=str,
+        default="cuda", 
+        help="cuda or cpu"
     )
     parser.add_argument(
         "--seed", type=int, default=42, metavar="S", help="random seed (default: 42)"
@@ -277,15 +184,18 @@ def main():
     )
 
     args = parser.parse_args()
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
-
+    use_cuda = args.device == "cuda" and torch.cuda.is_available()
+    args.device = torch.device("cuda" if use_cuda else "cpu")
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if use_cuda else "cpu")
+    # model = cnn.ShapeNet(out_size=args.pred_shape, conv_dims=args.conv_dims)
+		model = vaes.VAE(128, 64)
+    transforms = model.get_transforms()
+    loss_fn = model.loss
 
-    wargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
+    model = nn.DataParallel(model)
+    model.to(args.device)
 
-    model = cnn.ShapeNet(out_size=args.pred_shape, conv_dims=args.conv_dims).to(device)
     os.makedirs(args.model_save_path, exist_ok=True)
 
     if args.load_existing:
@@ -295,10 +205,10 @@ def main():
         root_dirs=args.scene_dir,
         n_scenes=args.n_scenes,
         n_frames=args.n_frames,
-        img_size=256,
-        device=device,
+        img_size=128,
+        device=args.device,
         as_rgb=False,
-        transforms=model.get_transforms(),
+        transforms=transforms,
         seed=args.seed,
     )
     optimizer = optim.Adam(
@@ -314,10 +224,10 @@ def main():
     wandb.watch(model)
 
     print("Initialized model and data loader, beginning training...")
+    best_test = 100000
     for epoch in range(1, args.epochs + 1):
-        best_test = 100000
-        train_shapenet(args, model, device, scene_loader, optimizer, epoch)
-        best_test = test_shapenet(args, model, device, scene_loader, epoch, best_test)
+        train_shapenet(args, model, loss_fn, scene_loader, optimizer, epoch)
+        best_test = test_shapenet(args, model, loss_fn, scene_loader, epoch, best_test)
 
 
 if __name__ == "__main__":

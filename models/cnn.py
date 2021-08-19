@@ -85,11 +85,10 @@ class ShapeNet(nn.Module):
     def prob_loss(self, predicted_shape, gt_shape):
         # gt_shape = self.inverse_transform(gt_shape)
         loss = -self.get_shape_dist(predicted_shape).log_prob(gt_shape).mean()
-        return loss
+				return {'loss': loss}
 
     def loss(self, predicted_shape, gt_shape):
-        mean_shape_prediction = predicted_shape.mean(axis=0)
-        return F.mse_loss(mean_shape_prediction, gt_shape)
+				return {'loss': F.mse_loss(predicted_shape, gt_shape)}
 
 class SimpleCNN(nn.Module):
     """

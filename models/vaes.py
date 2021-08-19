@@ -125,6 +125,6 @@ class VAE(nn.Module):
             z = z.to(current_device)
             samples = self.decode(z)
             return samples
-
+        
         def generate(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-            return self.forward(x)[0]
+		    return self.forward(x)[0]
