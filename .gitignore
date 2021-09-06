@@ -14,7 +14,7 @@ wandb/*
 slurm-*
 .vscode/
 *.pt
-media/*
+media/
 render_logs
 *.mp4
 jspsych-6.3.1/*
