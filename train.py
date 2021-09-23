@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import models, transforms as T
 from models import cnn, vaes
-from data_loader import SceneLoader
+from data.Gestalt3D import SceneLoader
 import wandb
 from tqdm import tqdm
 import matplotlib.pyplot as plt

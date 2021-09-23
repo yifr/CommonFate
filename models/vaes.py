@@ -91,7 +91,9 @@ class VAE(nn.Module):
             result = self.final_layer(result)
             return result
 
-        def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        def reparameterize(
+            self, mu: torch.Tensor, logvar: torch.Tensor
+        ) -> torch.Tensor:
             std = torch.exp(0.5 * logvar)
             eps = torch.randn_like(std)
             return eps * std + mu
@@ -120,11 +122,13 @@ class VAE(nn.Module):
                 "KLD": -kld_loss,
             }
 
-        def sample(self, num_samples: int, current_device: int, **kwargs) -> torch.Tensor:
+        def sample(
+            self, num_samples: int, current_device: int, **kwargs
+        ) -> torch.Tensor:
             z = torch.randn(num_samples, self.latent_dim)
             z = z.to(current_device)
             samples = self.decode(z)
             return samples
-        
+
         def generate(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-		    return self.forward(x)[0]
+            return self.forward(x)[0]
