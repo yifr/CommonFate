@@ -15,9 +15,10 @@ import numpy as np
 from pprint import pprint
 from pyquaternion import Quaternion
 from mathutils.bvhtree import BVHTree
+from typing import Tuple, List
 
-generator_path = str(pathlib.Path(__file__).parent.absolute())
-sys.path.append(generator_path)
+# generator_path = str(pathlib.Path(__file__).parent.absolute())
+# sys.path.append(generator_path)
 
 import utils
 import shapes
@@ -287,35 +288,20 @@ class BlenderScene(object):
                 if obj == obj_next or obj_next.type != "MESH":
                     continue
 
-                def dist(loc1, loc2):
-                    loc1 = np.array(loc1)
-                    loc2 = np.array(loc2)
-                    return np.sqrt(np.sum((loc1 - loc2) ** 2))
+                bm1 = self.bmesh_copy_from_object(obj)
+                bm2 = self.bmesh_copy_from_object(obj_next)
 
-                obj_dist = dist(
-                    obj.matrix_world.translation, obj_next.matrix_world.translation
-                )
+                bm1.transform(obj.matrix_world)
+                bm2.transform(obj_next.matrix_world)
 
-                if obj_dist < 0.5:
-                    print(
-                        f"{obj.name} is too close to {obj_next.name} -- intersection detected"
-                    )
+                # make BVH tree from BMesh of objects
+                obj_now_BVHtree = BVHTree.FromBMesh(bm1)
+                obj_next_BVHtree = BVHTree.FromBMesh(bm2)
+
+                # get intersecting pairs
+                inter = obj_now_BVHtree.overlap(obj_next_BVHtree)
+                if len(inter) > 0:
                     return True
-
-                # bm1 = self.bmesh_copy_from_object(obj)
-                # bm2 = self.bmesh_copy_from_object(obj_next)
-
-                # bm1.transform(obj.matrix_world)
-                # bm2.transform(obj_next.matrix_world)
-
-                # # make BVH tree from BMesh of objects
-                # obj_now_BVHtree = BVHTree.FromBMesh(bm1)
-                # obj_next_BVHtree = BVHTree.FromBMesh(bm2)
-
-                # # get intersecting pairs
-                # inter = obj_now_BVHtree.overlap(obj_next_BVHtree)
-                # if len(inter) > 10:
-                #     return True
 
         return False
 
@@ -467,7 +453,7 @@ class BlenderScene(object):
         bm = bmesh.new()
         bm.from_object(obj, bpy.context.view_layer.depsgraph)
 
-        size = 700
+        size = 300
         bm.verts.new((size, size, 0))
         bm.verts.new((size, -size, 0))
         bm.verts.new((-size, size, 0))
@@ -483,15 +469,16 @@ class BlenderScene(object):
         status = bpy.ops.uv.unwrap()
 
         # Add texture to background plane
-        texture_params = {'type': 'voronoi', 'params': {'Size': 50, 'Scale': 50, 'Width': 100}}
-        textures.add_texture(self, obj, texture_params)
+        textures.add_texture(texture_params)
 
         obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
         obj.location = [-30, 30, 0]
 
         return
 
-    def set_background_color(self, color=(255, 255, 255, 1)):
+    def set_background_color(
+        self, color: Tuple[int, int, int, int] = (255, 255, 255, 1)
+    ):
         """
         color should be a tuple (R,G,B,alpha) where alpha controls
         the transparency. Default color is white
@@ -553,8 +540,7 @@ class BlenderScene(object):
 
         obj = self.data.objects[object_id]
         obj.rotation_mode = "QUATERNION"
-
-        print(f"Rotation object {object_id}...")
+        print(f"Rotating object: {obj}")
         for frame, degree in enumerate(degrees):
             q = Quaternion(axis=rotation_axis, degrees=degree)
 
@@ -568,10 +554,11 @@ class BlenderScene(object):
             obj.rotation_quaternion = q.elements
             obj.keyframe_insert("rotation_quaternion", frame=frame + 1)
 
-        print("...done.")
         return
 
-    def rotate_hierarchy(self, hierarchy_config, collection_id, rotation="random"):
+    def rotate_hierarchy(
+        self, hierarchy_config: dict, collection_id: str, rotation: str = "random"
+    ) -> None:
         """
         Updates the location of every child in hierarchy to respect rotated
         vertex location.
@@ -665,67 +652,6 @@ class BlenderScene(object):
                 obj = self.data.objects[object_id]
                 textures.add_texture(self, obj, texture_config)
 
-    def generate_trajectory(self, obj, mesh_id=0, save=True):
-        data = {}
-        if os.path.exists(self.rotation_data):
-            data = np.load(self.rotation_data, allow_pickle=True).item()
-
-        if not data.get(mesh_id):
-            object = {}
-
-        n_frames = self.n_frames
-        object["trajectory"] = np.zeros((n_frames, 3))
-
-        quadrants = np.random.choice(
-            list(self.render_frame_boundaries.keys()), 2, replace=False
-        )
-        locations = [self.render_frame_boundaries[quadrant] for quadrant in quadrants]
-        print(quadrants)
-        for i, quadrant in enumerate(quadrants):
-            y, x = quadrant.split("_")
-            if y == "top":
-                y_range = locations[i][1] - self.y_len / 2
-            else:
-                y_range = locations[i][1] + self.y_len / 2
-
-            if x == "right":
-                x_range = locations[i][0] - self.x_len / 2
-            else:
-                x_range = locations[i][0] + self.x_len / 2
-
-            # Randomly sample starting point along either x or y axis of a quadrant
-            if np.random.rand() > 0.5:
-                # Sample starting point along y region
-                locations[i][1] = np.random.uniform(locations[i][1], y_range)
-            else:
-                locations[i][0] = np.random.uniform(locations[i][0], x_range)
-
-        self.render_frame_boundaries.pop(quadrants[0])
-        self.render_frame_boundaries.pop(quadrants[1])
-
-        x1, y1, z1 = locations[0]
-        x2, y2, z2 = locations[1]
-
-        scene = self.scene
-        scene.frame_start = 1
-        scene.frame_end = self.n_frames
-
-        obj.location = [x1, y1, z1]
-        obj.keyframe_insert("location", frame=1)
-
-        obj.location = [x2, y2, z2]
-        obj.keyframe_insert("location", frame=self.n_frames)
-
-        for i in range(n_frames):
-            bpy.context.scene.frame_set(i)
-            object["trajectory"][i] = obj.location
-
-        bpy.context.scene.frame_set(1)
-
-        if save:
-            np.save(self.rotation_data, data, allow_pickle=True)
-        return data
-
     def render(self, output_dir="images"):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
@@ -753,20 +679,11 @@ class BlenderScene(object):
             world_nodes["Background"].inputs["Strength"].default_value = 1.5
             self.set_background_color(color=(255, 255, 255, 1))
 
-        # if args.scene_type == "galaxy":
-        #     bpy.ops.object.empty_add(
-        #         type="PLAIN_AXES", align="WORLD", location=(0, 0, 0), scale=(1, 1, 1)
+        # if args.background_style == "textured":
+        #     self.add_background_plane(
+        #         texture_params={"noise": args.background_noise},
+        #         overwrite=args.new_background,
         #     )
-        #     center_axis = bpy.context.active_object
-        #     self.generate_rotation(center_axis, mesh_id=-1)
-
-        if args.background_style == "textured":
-            self.add_background_plane(
-                texture_params={"noise": 0}
-            )
-
-        # for obj in self.objects:
-        #     obj.select_set(True)
 
         bpy.ops.wm.save_as_mainfile(
             filepath=self.scene_dir + "/scene.blend", check_existing=False

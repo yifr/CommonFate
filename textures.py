@@ -426,8 +426,8 @@ def add_texture(scene, obj, tex_config):
 
     if texture_type not in PROCEDURAL_TEXTURES:
         raise ValueError(
-            f"""Texture type: {texture_type} is not an option. 
-            Please specify a texture type from the following list: 
+            f"""Texture type: {texture_type} is not an option.
+            Please specify a texture type from the following list:
             {', '.join(PROCEDURAL_TEXTURES)}"""
         )
 

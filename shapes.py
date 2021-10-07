@@ -163,10 +163,11 @@ def create_shape(
 
     if type(shape_params) == str and shape_params == "random":
         shape_params = np.random.uniform(0.01, 4.0, 3)
-        if is_parent:
-            scaling_params = [5, 5, 5, 10]
-        else:
-            scaling_params = [1, 1, 1, 2]
+        if not scaling_params:
+            if is_parent:
+                scaling_params = [5, 5, 5, 10]
+            else:
+                scaling_params = [1, 1, 1, 2]
 
     elif type(shape_params) == dict:
         shape_params = shape_params.get("shape_params")
@@ -201,4 +202,3 @@ if __name__ == "__main__":
     idxs = np.random.choice(len(s.points[0]), 100, replace=False)
     ax.scatter3D(s.points[0][idxs], s.points[1][idxs], s.points[2][idxs])
     plt.savefig("figure.png")
-
