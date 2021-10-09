@@ -48,8 +48,13 @@ class RenderEngine:
         # Set properties to increase speed of render time
         scene = self.scene
         scene.render.engine = self.engine  # use cycles for headless rendering
-        scene.render.resolution_x = self.render_size
-        scene.render.resolution_y = self.render_size
+        if len(self.render_size) > 1:
+            scene.render.resolution_x = self.render_size[0]
+            scene.render.resolution_y = self.render_size[1]
+        else:
+            scene.render.resolution_x = self.render_size[0]
+            scene.render.resolution_y = self.render_size[0]
+
         scene.render.image_settings.color_mode = "BW"
         scene.render.image_settings.compression = 0
         scene.cycles.samples = self.samples

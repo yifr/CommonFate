@@ -61,7 +61,16 @@ parser.add_argument(
     help="Whether or not to add dot texture to meshes",
 )
 # Render settings
+parser.add_argument(
+    "--render_views",
+    type=str,
+    default="textured",
+    choices=["ground_truth", "textured", "all"],
+    help="What types of views to render",
+)
+
 parser.add_argument("--device", type=str, help='Either "CUDA" or "CPU"', default="CUDA")
+
 parser.add_argument(
     "--engine",
     type=str,
@@ -72,7 +81,11 @@ parser.add_argument(
     "--output_img_name", type=str, help="Name for output images", default="img"
 )
 parser.add_argument(
-    "--render_size", type=int, help="size of .png file to render", default=512
+    "--render_size",
+    type=int,
+    nargs="+",
+    help="size of .png file to render",
+    default=512,
 )
 parser.add_argument(
     "--samples",
@@ -296,7 +309,7 @@ class BlenderScene(object):
                     obj.matrix_world.translation, obj_next.matrix_world.translation
                 )
 
-                if obj_dist < 0.5:
+                if obj_dist < 1:
                     print(
                         f"{obj.name} is too close to {obj_next.name} -- intersection detected"
                     )
@@ -453,7 +466,7 @@ class BlenderScene(object):
         print(all_object_configs.keys())
         return
 
-    def add_background_plane(self, texture_params={}):
+    def add_background_plane(self, texture_params={}, add_displacement=True):
         """
         Adds plane to background and adds image texture that can be modified during animation.
         The texture material is added with the name "Background" for later access.
@@ -467,7 +480,7 @@ class BlenderScene(object):
         bm = bmesh.new()
         bm.from_object(obj, bpy.context.view_layer.depsgraph)
 
-        size = 700
+        size = 100
         bm.verts.new((size, size, 0))
         bm.verts.new((size, -size, 0))
         bm.verts.new((-size, size, 0))
@@ -483,11 +496,29 @@ class BlenderScene(object):
         status = bpy.ops.uv.unwrap()
 
         # Add texture to background plane
-        texture_params = {'type': 'voronoi', 'params': {'Size': 50, 'Scale': 50, 'Width': 100}}
+        texture_params = {
+            "type": "random",
+            "params": {"Scale": np.random.uniform(0.25, 2.5)},
+            "material_name": "BackgroundTexture",
+        }
         textures.add_texture(self, obj, texture_params)
 
-        obj.rotation_euler = [np.radians(91), np.radians(0), np.radians(45)]
-        obj.location = [-30, 30, 0]
+        if add_displacement:
+            modifiers = obj.modifiers
+            modifiers.new("Subdivision", type="SUBSURF")
+            modifiers["Subdivision"].levels = 6
+            modifiers["Subdivision"].render_levels = 6
+
+            modifiers.new("Displacement", type="DISPLACE")
+            self.data.textures.new("BackgroundDisplacement", "DISTORTED_NOISE")
+            modifiers["Displacement"].texture = self.data.textures[
+                "BackgroundDisplacement"
+            ]
+            modifiers["Displacement"].strength = 10
+            self.set_mode("OBJECT")
+
+        obj.rotation_euler = [np.radians(90), np.radians(0), np.radians(45)]
+        obj.location = [-15, 15, 0]
 
         return
 
@@ -730,6 +761,23 @@ class BlenderScene(object):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
 
+    def render_ground_truth(self, output_dir="images"):
+        output_dir = os.path.join(self.scene_dir, output_dir, "gt_")
+        self.scene.render.filepath = output_dir
+        world_nodes = self.data.worlds["World"].node_tree.nodes
+        world_nodes["Background"].inputs["Color"].default_value = (0.3, 0.3, 0.3, 1)
+        world_nodes["Background"].inputs["Strength"].default_value = 1
+        self.objects["Light"].data.energy = 1.5
+
+        for mat in bpy.data.materials:
+            mat.use_nodes = False
+            if mat.name != "BackgroundTexture":
+                mat.diffuse_color = (0.05, 0.02, 0.8, 1)
+
+        self.context.scene.render.film_transparent = False
+
+        bpy.ops.render.render(animation=True)
+
     def create_default_scene(self, args):
         # Clear any previous meshes
         self.set_mode("OBJECT")
@@ -761,9 +809,7 @@ class BlenderScene(object):
         #     self.generate_rotation(center_axis, mesh_id=-1)
 
         if args.background_style == "textured":
-            self.add_background_plane(
-                texture_params={"noise": 0}
-            )
+            self.add_background_plane(texture_params={"noise": 0})
 
         # for obj in self.objects:
         #     obj.select_set(True)
@@ -771,7 +817,14 @@ class BlenderScene(object):
         bpy.ops.wm.save_as_mainfile(
             filepath=self.scene_dir + "/scene.blend", check_existing=False
         )
-        self.render()
+
+        if args.render_views == "all":
+            self.render()
+            self.render_ground_truth()
+        elif args.render_views == "ground_truth":
+            self.render_ground_truth()
+        else:
+            self.render()
 
         # Clean up scene
         self.delete_all(obj_type="MESH")
@@ -828,17 +881,6 @@ def main(args):
             0.8149283528327942,
         ]
         camera.data.sensor_width = 50
-        # scene.render_frame_boundaries = copy.deepcopy(
-        #     global_scene_params["render_frame_boundaries"]
-        # )
-        # scene.x_len = (
-        #     scene.render_frame_boundaries["top_right"][0]
-        #     - scene.render_frame_boundaries["top_left"][0]
-        # )
-        # scene.y_len = (
-        #     scene.render_frame_boundaries["top_right"][1]
-        #     - scene.render_frame_boundaries["bottom_right"][1]
-        # )
 
         scene.create_default_scene(args)
 

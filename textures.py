@@ -40,7 +40,7 @@ TEXTURE_MAPS = {
         "Roughness": [0, 1],
         "Distortion": [0, 4],
     },
-    "ShaderNodeTexChecker": {"Scale": [2, 30]},
+    "ShaderNodeTexChecker": {"Scale": [1, 5]},
     "ShaderNodeTexBrick": {
         "Scale": [1, 10],
         "Mortar Size": [0, 0.025],
