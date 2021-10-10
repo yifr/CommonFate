@@ -19,7 +19,7 @@ TEXTURE_FUNCTIONS = [
 ]
 
 
-PROCEDURAL_TEXTURES = ["voronoi", "wave", "magic", "checker", "noise", "brick"]
+PROCEDURAL_TEXTURES = ["voronoi", "wave", "magic", "noise"]
 
 
 def Shader(name):
@@ -40,15 +40,15 @@ TEXTURE_MAPS = {
         "Roughness": [0, 1],
         "Distortion": [0, 4],
     },
-    "ShaderNodeTexChecker": {"Scale": [1, 5]},
-    "ShaderNodeTexBrick": {
-        "Scale": [1, 10],
-        "Mortar Size": [0, 0.025],
-        "Mortar Smooth": [0, 1],
-        "Bias": [-1, 0],
-        "Brick Width": [0.02, 2],
-        "Row Height": [0.25, 1],
-    },
+    # "ShaderNodeTexChecker": {"Scale": [1, 5]},
+    # "ShaderNodeTexBrick": {
+    #     "Scale": [1, 10],
+    #     "Mortar Size": [0, 0.025],
+    #     "Mortar Smooth": [0, 1],
+    #     "Bias": [-1, 0],
+    #     "Brick Width": [0.02, 2],
+    #     "Row Height": [0.25, 1],
+    # },
     "ShaderNodeTexMagic": {"Scale": [2, 5], "Distortion": [0.5, 10]},
 }
 
@@ -419,6 +419,8 @@ def noisy_dot_texture_png(
 
 
 def add_texture(scene, obj, tex_config):
+    material_name = tex_config.get("material_name", "texture")
+
     texture_config = tex_config.copy()
     texture_type = texture_config.get("type")
     if texture_type == "random":
@@ -441,8 +443,6 @@ def add_texture(scene, obj, tex_config):
 
     width = texture_params.get("Width", 0.5)
     material_color = texture_params.get("material_color")
-    material_name = texture_params.get("material_name", "texture")
-
     transparent = texture_config.get("transparent")
     if transparent:
         if not material_color:
@@ -454,6 +454,7 @@ def add_texture(scene, obj, tex_config):
             texture_params=texture_params,
             material_color=material_color,
             obj=obj,
+            material_name=material_name,
         )
     else:
         base_texture(

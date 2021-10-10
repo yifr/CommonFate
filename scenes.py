@@ -769,11 +769,15 @@ class BlenderScene(object):
         world_nodes["Background"].inputs["Strength"].default_value = 1
         self.objects["Light"].data.energy = 1.5
 
+        print("[Turning off texture]")
         for mat in bpy.data.materials:
             mat.use_nodes = False
+            print(mat.name)
             if mat.name != "BackgroundTexture":
-                mat.diffuse_color = (0.05, 0.02, 0.8, 1)
-
+                color = list(np.random.random(3))
+                color.append(1)
+                mat.diffuse_color = color
+                mat.shadow_method = "OPAQUE"
         self.context.scene.render.film_transparent = False
 
         bpy.ops.render.render(animation=True)
@@ -845,8 +849,11 @@ def main(args):
         print("Created root directory: ", args.root_dir)
 
     if args.scene_config != "random":
-        with open(args.scene_config, "r") as f:
-            scene_config = json.load(f)
+        with open(args.scene_config, "rb") as f:
+            if args.scene_config.endswith(".pkl"):
+                scene_config = pickle.load(f)
+            else:
+                scene_config = json.load(f)
         print("Loaded scene config: ")
         pprint(scene_config)
 
