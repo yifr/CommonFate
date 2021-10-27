@@ -1,10 +1,11 @@
 import sys
 
-sys.path.append("/Users/yoni/Projects/CommonFate/generator")
+sys.path.append("/Users/yoni/Projects/CommonFate")
 import bpy
 import numpy as np
 import shapes
 from scipy.spatial import Delaunay
+from pyquaternion import Quaternion
 
 # from render_scenes import delete_all
 
@@ -54,8 +55,49 @@ def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
 
 # shape = superquadrics.SuperEllipsoid([0.5, 2.5], [1])
 # add_mesh("test", shape.verts, shape.faces)
-shape = shapes.SuperQuadric("supertoroid", shape_params=[1.59864339, 3.80445551, 0.83916191], scaling_params=[1,1,1,2])
-add_mesh("test", verts=shape.verts, faces=shape.faces)
+#shape = shapes.SuperQuadric("supertoroid", shape_params=[1.59864339, 3.80445551, 0.83916191], scaling_params=[1,1,1,2])
+#add_mesh("test", verts=shape.verts, faces=shape.faces)
+
+def rotate(obj):
+    obj.rotation_mode = "QUATERNION"
+    degrees = np.linspace(0, 360, 100)
+    rotation_axis = np.random.uniform(-1, 1, 3)
+    for frame, degree in enumerate(degrees):
+            q = Quaternion(axis=rotation_axis, degrees=degree)
+            obj.rotation_quaternion = q.elements
+            obj.keyframe_insert("rotation_quaternion", frame=frame+1)
+            
+def add_shapegenerator_shapes():
+    x, y, z = 0, 0, 1
+    for extrusions in range(7, 12):
+        seed = np.random.randint(0, 100000)
+        for slide in np.linspace(1, 3, 5):
+            subsurf = y > 20 # Make some shapes with rounder edges
+            bpy.ops.mesh.shape_generator(random_seed=seed, 
+                                         amount=extrusions, 
+                                         max_slide=slide,
+                                         big_shape_num=np.random.randint(1, 3),
+                                         mirror_x=False, 
+                                         is_subsurf=subsurf)
+                                         
+            collection = bpy.data.collections[-1]
+ 
+            for obj in collection.all_objects:
+                obj.select_set(True)
+            bpy.ops.object.join()
+            
+            # adjust location coordinates to tile the shapes 
+            obj = bpy.context.active_object
+            obj.location = (x, y, z)
+            rotate(obj)
+            
+            x += 10
+            if x % 50 == 0:
+                x = 0
+                y += 10 
+            
+add_shapegenerator_shapes()
+
 """
 dx, dy = 6, 6
 

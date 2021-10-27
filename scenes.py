@@ -56,6 +56,12 @@ parser.add_argument(
     default="scene_config.json",
 )
 parser.add_argument(
+    "--init_config_from_scene_dir",
+    action="store_true",
+    help="If present, will initialize config for individual scene directories",
+)
+
+parser.add_argument(
     "--no_texture_mesh",
     action="store_true",
     help="Whether or not to add dot texture to meshes",
@@ -294,24 +300,25 @@ class BlenderScene(object):
         self.set_mode("OBJECT")
         bpy.context.view_layer.update()
 
+        def dist(loc1, loc2):
+            loc1 = np.array(loc1)
+            loc2 = np.array(loc2)
+            return np.sqrt(np.sum((loc1 - loc2) ** 2))
+
+        print(f"{obj.name}: {obj.location}")
         for col in self.data.collections:
             obj_list = col.all_objects
             for obj_next in obj_list:
                 if obj == obj_next or obj_next.type != "MESH":
                     continue
-
-                def dist(loc1, loc2):
-                    loc1 = np.array(loc1)
-                    loc2 = np.array(loc2)
-                    return np.sqrt(np.sum((loc1 - loc2) ** 2))
-
-                obj_dist = dist(
-                    obj.matrix_world.translation, obj_next.matrix_world.translation
+                print(
+                    f"\tChecking {obj.name} against: {obj_next.name}: {obj_next.location}"
                 )
-
-                if obj_dist < 1:
+                obj_dist = dist(obj.location, obj_next.location)
+                print("\tDISTANCE: ", obj_dist)
+                if obj_dist < 2:
                     print(
-                        f"{obj.name} is too close to {obj_next.name} -- intersection detected"
+                        f"{obj.name}: {obj.location} is too close to {obj_next.name}: {obj_next.location} -- intersection detected"
                     )
                     return True
 
@@ -392,14 +399,22 @@ class BlenderScene(object):
             # Create meshes along the parent shape manifold
             # and update the config accordingly
             if is_parent:
-                object_config["children"] = []
+                if "children" not in object_config.keys():
+                    object_config["children"] = []
+
                 child_shape_type = child_params.get("shape_type")
                 child_shape_params = child_params.get("shape_params")
                 child_scaling_params = child_params.get("scaling_params")
 
-                # intersection_size = child_scaling_params[-1]
                 i = 0
+                location = location if location else np.array([0, 0, 0])
+                verts += location
                 for vert in verts:
+                    if len(object_config["children"]) > i:
+                        child_config = all_object_configs[object_config["children"][i]]
+                        child_shape_type = child_config.get("shape_type")
+                        child_shape_params = child_config.get("shape_params")
+                        child_scaling_params = child_config.get("scaling_params")
 
                     child_object = shapes.create_shape(
                         shape_type=child_shape_type,
@@ -426,7 +441,6 @@ class BlenderScene(object):
                     intersection = self.intersection_check(obj, object_id)
                     if intersection:
                         self.delete(obj)
-
                     else:
                         print(f"Adding child ID: {child_id}")
                         all_object_configs[child_id] = {
@@ -439,7 +453,7 @@ class BlenderScene(object):
                         }
                         object_config["children"].append(child_id)
 
-                        i += 1
+                    i += 1
 
                 if len(object_config["children"]) == 0:
                     del all_object_configs[object_id]
@@ -496,11 +510,12 @@ class BlenderScene(object):
         status = bpy.ops.uv.unwrap()
 
         # Add texture to background plane
-        texture_params = {
-            "type": "random",
-            "params": {"Scale": np.random.uniform(0.25, 2.5)},
-            "material_name": "BackgroundTexture",
-        }
+        if not texture_params:
+            texture_params = {
+                "type": "random",
+                "params": {"Scale": np.random.uniform(0.25, 2.5)},
+                "material_name": "BackgroundTexture",
+            }
         textures.add_texture(self, obj, texture_params)
 
         if add_displacement:
@@ -618,6 +633,7 @@ class BlenderScene(object):
         hierarchy_config["rotation_matrix"] = np.zeros(shape=[n_frames, 3, 3])
         hierarchy_config["angle"] = np.zeros(shape=[n_frames, 1])
         hierarchy_config["axis"] = np.zeros(shape=[n_frames, 3])
+        location = hierarchy_config.get("location", np.array([0, 0, 0]))
 
         shape = shapes.create_shape(
             hierarchy_config["shape_type"],
@@ -630,6 +646,7 @@ class BlenderScene(object):
         rotation_axis = np.random.uniform(-1, 1, 3)
         degrees = np.linspace(0, 360, n_frames)
         verts = shape.verts
+        verts += location
 
         print(f"Rotating children in hierarchy: {collection_id}...")
 
@@ -694,7 +711,8 @@ class BlenderScene(object):
             else:
                 texture_config = object_config.get("texture")
                 obj = self.data.objects[object_id]
-                textures.add_texture(self, obj, texture_config)
+                texture = textures.add_texture(self, obj, texture_config)
+                object_config["texture"] = texture
 
     def generate_trajectory(self, obj, mesh_id=0, save=True):
         data = {}
@@ -778,6 +796,9 @@ class BlenderScene(object):
                 color.append(1)
                 mat.diffuse_color = color
                 mat.shadow_method = "OPAQUE"
+            else:
+                mat.diffuse_color = (0, 0, 0, 0)
+
         self.context.scene.render.film_transparent = False
 
         bpy.ops.render.render(animation=True)
@@ -799,12 +820,6 @@ class BlenderScene(object):
         self.generate_rotations()
         self.add_textures()
 
-        if args.background_style == "white":
-            world_nodes = self.data.worlds["World"].node_tree.nodes
-            world_nodes["Background"].inputs["Color"].default_value = (1, 1, 1, 1)
-            world_nodes["Background"].inputs["Strength"].default_value = 1.5
-            self.set_background_color(color=(255, 255, 255, 1))
-
         # if args.scene_type == "galaxy":
         #     bpy.ops.object.empty_add(
         #         type="PLAIN_AXES", align="WORLD", location=(0, 0, 0), scale=(1, 1, 1)
@@ -812,11 +827,19 @@ class BlenderScene(object):
         #     center_axis = bpy.context.active_object
         #     self.generate_rotation(center_axis, mesh_id=-1)
 
-        if args.background_style == "textured":
-            self.add_background_plane(texture_params={"noise": 0})
-
-        # for obj in self.objects:
-        #     obj.select_set(True)
+        background = self.scene_config.get("background")
+        if not background or not background.get("texture"):
+            # Set background to white
+            world_nodes = self.data.worlds["World"].node_tree.nodes
+            world_nodes["Background"].inputs["Color"].default_value = (1, 1, 1, 1)
+            world_nodes["Background"].inputs["Strength"].default_value = 1.5
+            self.set_background_color(color=(255, 255, 255, 1))
+        else:
+            texture = background.get("texture")
+            displacement = background.get("displacement")
+            self.add_background_plane(
+                texture_params=texture, add_displacement=displacement
+            )
 
         bpy.ops.wm.save_as_mainfile(
             filepath=self.scene_dir + "/scene.blend", check_existing=False
@@ -848,21 +871,24 @@ def main(args):
         os.mkdir(args.root_dir)
         print("Created root directory: ", args.root_dir)
 
-    if args.scene_config != "random":
-        with open(args.scene_config, "rb") as f:
-            if args.scene_config.endswith(".pkl"):
-                scene_config = pickle.load(f)
-            else:
-                scene_config = json.load(f)
-        print("Loaded scene config: ")
-        pprint(scene_config)
-
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, "scene_%03d" % scene_num)
         os.makedirs(scene_dir, exist_ok=True)
         logging.info("Processing scene: {}...".format(scene_dir))
 
-        if args.scene_config == "random":
+        if args.scene_config != "random":
+            if args.init_config_from_scene_dir:
+                config_path = os.path.join(scene_dir, args.scene_config)
+            else:
+                config_path = args.scene_config
+            print("Loading config from path: ", config_path)
+            with open(config_path, "rb") as f:
+                if config_path.endswith(".pkl"):
+                    scene_config = pickle.load(f)
+                else:
+                    scene_config = json.load(f)
+                    pprint(scene_config)
+        else:
             scene_config = configs.generate_random_config()
             print("Generated random scene config: ")
             pprint(scene_config)

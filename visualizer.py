@@ -10,11 +10,6 @@ for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
     os.makedirs(scene_dir, exist_ok=True)
     logging.info("Processing scene: {}...".format(scene_dir))
 
-    if args.scene_config == "random":
-        scene_config = configs.generate_random_config()
-        print("Generated random scene config: ")
-        pprint(scene_config)
-
     # Create a scene and initialize some basic properties
     scene = BlenderScene(
         scene_dir,

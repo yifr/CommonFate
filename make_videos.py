@@ -14,12 +14,12 @@ for i in range(args.start_scene, args.start_scene + args.n_videos):
     path = f"{args.root_dir}/scene_{i:03d}/images"
 
     os.system(
-        f"ffmpeg -y -framerate 10 -i {path}/img_%04d.png -pix_fmt yuv420p -c:v libx264 movies/scene_{i:03d}_tex.mp4"
+        f"ffmpeg -y -framerate 15 -i {path}/img_%04d.png -pix_fmt yuv420p -c:v libx264 movies/scene_{i:03d}_tex.mp4"
     )
     if args.views == "all":
         try:
             os.system(
-                f"ffmpeg -y -framerate 10 -i {path}/gt_%04d.png -pix_fmt yuv420p -c:v libx264 movies/scene_{i:03d}_gt.mp4"
+                f"ffmpeg -y -framerate 15 -i {path}/gt_%04d.png -pix_fmt yuv420p -c:v libx264 movies/scene_{i:03d}_gt.mp4"
             )
         except:
             print("Could not find ground truth videos")

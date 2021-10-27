@@ -1,0 +1,36 @@
+{
+    "objects": {
+        "h1": {
+            "shape_type": "superellipsoid",
+            "shape_params": "random",
+            "scaling_params": [8, 8, 8, 12],
+            "n_points": 4,
+            "child_params": {
+                "shape_type": "random",
+                "shape_params": "random",
+                "scaling_params": [1, 1, 1, 2],
+                "texture": {"type": "voronoi", "params": {}},
+                "rotation": true
+            },
+            "location": [-4, -4, -1],
+            "rotation": true,
+            "translation": false
+        },
+        "h2": {
+            "shape_type": "superellipsoid",
+            "shape_params": "random",
+            "scaling_params": [8, 8, 8, 12],
+            "n_points": 4,
+            "child_params": {
+                "shape_type": "random",
+                "shape_params": "random",
+                "scaling_params": [1, 1, 1, 2],
+                "texture": {"type": "magic", "params": {}},
+                "rotation": true
+            },
+            "location": [8, 8, 0],
+            "rotation": true,
+            "translation": false
+        }
+    }
+}

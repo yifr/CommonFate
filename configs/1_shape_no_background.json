@@ -1,0 +1,17 @@
+{
+    "objects": {
+        "s1": {
+            "shape_type": "supertoroid",
+            "shape_params": "random",
+            "scaling_params": [5, 5, 5, 10],
+            "texture": {"type": "random", "transparent": true},
+            "rotation": true,
+            "translation": false,
+            "location": [0, 0, 0]
+        }
+    },
+    "background": {
+        "texture": {},
+        "displacement": false
+    }
+}

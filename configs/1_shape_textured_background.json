@@ -1,0 +1,17 @@
+{
+    "objects": {
+        "s1": {
+            "shape_type": "superellipsoid",
+            "shape_params": "random",
+            "texture": {"type": "noise", "params": {"Scale": 0.6}, "transparent": false},
+            "scaling_params": [8, 8, 8, 16],
+            "rotation": true,
+            "translation": false,
+            "location": [0, 0, 0]
+        }
+    },
+    "background": {
+        "texture": {"type": "noise", "params": {"Scale": 0.6}},
+        "displacement": true
+    }
+}

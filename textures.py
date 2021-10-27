@@ -27,19 +27,20 @@ def Shader(name):
 
 
 TEXTURE_MAPS = {
-    "ShaderNodeTexVoronoi": {"Scale": [1.25, 10], "Randomness": [0, 1]},
+    "ShaderNodeTexVoronoi": {"Scale": [0.25, 3], "Randomness": [0, 1]},
     "ShaderNodeTexWave": {
-        "Scale": [0.25, 3],
+        "Scale": [0.1, 1],
         "Distortion": [0, 7.5],
         "Detail": [0, 5],
         "Detail Scale": [0, 5],
     },
     "ShaderNodeTexNoise": {
-        "Scale": [1, 10],
+        "Scale": [0.1, 1],
         "Detail": [1, 2],
         "Roughness": [0, 1],
         "Distortion": [0, 4],
     },
+    "ShaderNodeTexMagic": {"Scale": [0.1, 1], "Distortion": [0.5, 10]},
     # "ShaderNodeTexChecker": {"Scale": [1, 5]},
     # "ShaderNodeTexBrick": {
     #     "Scale": [1, 10],
@@ -49,7 +50,6 @@ TEXTURE_MAPS = {
     #     "Brick Width": [0.02, 2],
     #     "Row Height": [0.25, 1],
     # },
-    "ShaderNodeTexMagic": {"Scale": [2, 5], "Distortion": [0.5, 10]},
 }
 
 
@@ -61,6 +61,7 @@ def base_texture(
     width=0.5,
     obj=None,
     material_name="texture",
+    shading=False,
 ):
     """
     Appends procedural texture polka dot texture to mesh.
@@ -85,11 +86,17 @@ def base_texture(
     nodes = mat.node_tree.nodes
     bsdf = nodes["Principled BSDF"]
 
-    bsdf.inputs["Specular"].default_value = 0
-    bsdf.inputs["Roughness"].default_value = 1
-    bsdf.inputs["Transmission"].default_value = 0
-    bsdf.inputs["Sheen Tint"].default_value = 0
-    mat.shadow_method = "NONE"
+    emission_node = nodes.new(type="ShaderNodeEmission")
+
+    if shading:
+        bsdf.inputs["Specular"].default_value = 0
+        bsdf.inputs["Roughness"].default_value = 1
+        bsdf.inputs["Transmission"].default_value = 0
+        bsdf.inputs["Sheen Tint"].default_value = 0
+        output_node = bsdf
+    else:
+        nodes.remove(bsdf)
+        output_node = emission_node
 
     texture = nodes.new(type=texture_type)
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
@@ -100,26 +107,26 @@ def base_texture(
     # Link Nodes
     ##############
     links = mat.node_tree.links
+    links.new(output_node.outputs[0], nodes["Material Output"].inputs[0])
 
     # Coordinate Texture -> Mapping Node --> Noise Texture
     links.new(coordinate_node.outputs["Object"], mapping_node.inputs[0])
     links.new(mapping_node.outputs[0], texture.inputs[0])
 
     links.new(texture.outputs[0], color_ramp.inputs["Fac"])
-    links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
-
+    links.new(color_ramp.outputs["Color"], output_node.inputs[0])
     color_ramp.color_ramp.elements.new(0.5)
 
+    # Currently only support black and white colors
     color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
     color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
 
     # Evenly interpolate between color/white spots
     color_ramp.color_ramp.elements[0].position = 0
     color_ramp.color_ramp.elements[1].position = width
-
     color_ramp.color_ramp.interpolation = "CONSTANT"
 
-    if material_color:
+    if material_color and shading:
         bsdf.inputs["Base Color"].default_value = material_color
 
     for param in texture_params:
@@ -425,6 +432,7 @@ def add_texture(scene, obj, tex_config):
     texture_type = texture_config.get("type")
     if texture_type == "random":
         texture_type = np.random.choice(PROCEDURAL_TEXTURES)
+        texture_config["type"] = texture_type
 
     if texture_type not in PROCEDURAL_TEXTURES:
         raise ValueError(
