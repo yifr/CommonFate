@@ -4,7 +4,7 @@
             "shape_type": "superellipsoid",
             "shape_params": "random",
             "texture": {"type": "voronoi", "params": {"Scale": 0.3}, "transparent": false},
-            "scaling_params": [8, 8, 8, 16],
+            "scaling_params": [12, 12, 12, 16],
             "rotation": true,
             "translation": false,
             "location": [0, 0, 0]
