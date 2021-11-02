@@ -3,15 +3,15 @@
         "s1": {
             "shape_type": "superellipsoid",
             "shape_params": "random",
-            "texture": {"type": "random", "params": {"Scale": 0.85}},
-            "scaling_params": [8, 8, 8, 10],
+            "texture": {"type": "voronoi", "params": {"Scale": 0.5}},
+            "scaling_params": [10, 10, 10, 10],
             "location": [0, 0, 0],
             "rotation": true,
             "translation": false
         }
     }, 
     "background": {
-        "texture": {"type": "voronoi", "params": {"Scale": 4}},
-        "deform": true
+        "texture": {"type": "voronoi", "params": {"Scale": 0.3}},
+        "displacement": true
     }
 }

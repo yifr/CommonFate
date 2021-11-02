@@ -41,7 +41,10 @@ parser.add_argument(
     "--n_frames", type=int, help="Number of frames to render per scene", default=10
 )
 parser.add_argument(
-    "--start_scene", type=int, help="Scene number to begin rendering from", default=0,
+    "--start_scene",
+    type=int,
+    help="Scene number to begin rendering from",
+    default=0,
 )
 parser.add_argument(
     "--experiment_name", type=str, help="Experiment name", default="galaxy_scene_v1"
@@ -526,10 +529,12 @@ class BlenderScene(object):
             modifiers["Displacement"].texture = self.data.textures[
                 "BackgroundDisplacement"
             ]
-            modifiers["Displacement"].strength = 10
+            strength = np.random.randint(5, 10)
+            modifiers["Displacement"].strength = strength
+            self.scene_config["background"]["displacement"] = strength
             self.set_mode("OBJECT")
 
-        obj.rotation_euler = [np.radians(90), np.radians(0), np.radians(45)]
+        obj.rotation_euler = self.data.objects["Camera"].rotation_euler
         obj.location = [-15, 15, 0]
 
         return
