@@ -71,7 +71,7 @@ parser.add_argument(
     "--render_views",
     type=str,
     default="textured",
-    choices=["ground_truth", "textured", "all"],
+    choices=["ground_truth", "textured", "all", "masks"],
     help="What types of views to render",
 )
 
@@ -96,7 +96,7 @@ parser.add_argument(
 parser.add_argument(
     "--samples",
     type=int,
-    default=256,
+    default=64,
     help="Samples to use in rendering (fewer samples renders faster",
 )
 
@@ -781,6 +781,70 @@ class BlenderScene(object):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
 
+    def render_masks(self, output_dir="masks"):
+        objects = self.data.objects
+        scene = self.context.scene
+
+        scene.use_nodes = True
+        scene.render.engine = "CYCLES"
+        scene.cycles.samples = 1
+
+        # Give each object in the scene a unique pass index
+        scene.view_layers["ViewLayer"].use_pass_object_index = True
+
+        for i, object in enumerate(objects):
+            if object.name == "Plane":
+                object.pass_index = 0
+            elif len(objects) < 3:
+                object.pass_index = (i + 1) * 100
+            else:
+                object.pass_index = (i + 1) * 10
+
+        node_tree = scene.node_tree
+        links = node_tree.links
+
+        ## Clear default nodes
+        for node in node_tree.nodes:
+            node_tree.nodes.remove(node)
+
+        # Create a node for outputting the rendered image
+        image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        image_output_node.label = "Image_Output"
+        path = os.path.join(self.scene_dir, "images")
+        image_output_node.base_path = path
+        image_output_node.location = 400, 0
+
+        # Create a node for outputting the depth of each pixel from the camera
+        depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        depth_output_node.label = "Depth_Output"
+        path = os.path.join(self.scene_dir, "depth")
+        depth_output_node.base_path = path
+        depth_output_node.location = 400, -100
+
+        # Create a node for outputting the index of each object
+        mask_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        mask_output_node.label = "Mask_Output"
+        path = os.path.join(self.scene_dir, "masks")
+        mask_output_node.base_path = path
+        mask_output_node.location = 400, -200
+
+        # Create a node for the output from the renderer
+        render_layers_node = node_tree.nodes.new(type="CompositorNodeRLayers")
+        render_layers_node.location = 0, 0
+
+        # Link all the nodes together
+        links.new(
+            render_layers_node.outputs["Image"], image_output_node.inputs["Image"]
+        )
+        links.new(
+            render_layers_node.outputs["Depth"], depth_output_node.inputs["Image"]
+        )
+        links.new(
+            render_layers_node.outputs["IndexOB"], mask_output_node.inputs["Image"]
+        )
+
+        bpy.ops.render.render(animation=True)
+
     def render_ground_truth(self, output_dir="images"):
         output_dir = os.path.join(self.scene_dir, output_dir, "gt_")
         self.scene.render.filepath = output_dir
@@ -849,9 +913,12 @@ class BlenderScene(object):
 
         if args.render_views == "all":
             self.render()
+            self.render_masks()
             self.render_ground_truth()
         elif args.render_views == "ground_truth":
             self.render_ground_truth()
+        elif args.render_views == "masks":
+            self.render_masks()
         else:
             self.render()
 
