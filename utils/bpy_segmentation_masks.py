@@ -25,8 +25,8 @@ file_output.layer_slots.new("Segmentation")
 
 # Change output path for segmentation images
 path = file_output.base_path
-path_sections = path.split('/')[:-1]
-new_path = '/'.join(path_sections) + '/segmentation_'
+path_sections = path.split("/")[:-1]
+new_path = "/".join(path_sections) + "/segmentation_"
 file_output.base_path = new_path
 
 # Make sure pass indexes are normalized to [0, 1]
@@ -36,7 +36,7 @@ div.inputs[1].default_value = 255
 
 # link everything up
 node_tree.links.new(render_layer.outputs["Image"], file_output.inputs["Image"])
-node_tree.links.new(render_layer.outputs['IndexOB'], div.inputs[0])
+node_tree.links.new(render_layer.outputs["IndexOB"], div.inputs[0])
 node_tree.links.new(div.outputs[0], file_output.inputs["Segmentation"])
 
 scene.render()

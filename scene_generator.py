@@ -843,7 +843,7 @@ class BlenderScene(object):
             render_layers_node.outputs["IndexOB"], mask_output_node.inputs["Image"]
         )
 
-        bpy.ops.render.render(animation=True)
+        bpy.ops.render.render(animation=True, layer="Indexes")
 
     def render_ground_truth(self, output_dir="images"):
         output_dir = os.path.join(self.scene_dir, output_dir, "gt_")
