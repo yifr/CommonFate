@@ -103,6 +103,13 @@ def base_texture(
     mapping_node = nodes.new(type="ShaderNodeMapping")
     coordinate_node = nodes.new(type="ShaderNodeTexCoord")
 
+    nodes["Material Output"].location = (600, 0)
+    output_node.location = (400, 0)
+    color_ramp.location = (300, 0)
+    texture.location = (200, 0)
+    mapping_node.location = (100, 0)
+    coordinate_node.location = (0, 0)
+
     ##############
     # Link Nodes
     ##############

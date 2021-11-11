@@ -84,7 +84,7 @@ parser.add_argument(
     default="CYCLES",
 )
 parser.add_argument(
-    "--output_img_name", type=str, help="Name for output images", default="img"
+    "--output_img_name", type=str, help="Name for output images", default="Image"
 )
 parser.add_argument(
     "--render_size",
@@ -135,6 +135,8 @@ class BlenderScene(object):
             render_size=render_size,
             samples=samples,
         )
+        self.renderer.set_render_settings()
+
         self.rotation_data = os.path.join(self.scene_dir, "data.npy")
         self.render_frame_boundaries = None
         self.args = args
@@ -316,7 +318,7 @@ class BlenderScene(object):
                 )
                 obj_dist = dist(obj.location, obj_next.location)
                 print("\tDISTANCE: ", obj_dist)
-                if obj_dist < 2:
+                if obj_dist < 4:
                     print(
                         f"{obj.name}: {obj.location} is too close to {obj_next.name}: {obj_next.location} -- intersection detected"
                     )
@@ -513,7 +515,7 @@ class BlenderScene(object):
         if not texture_params:
             texture_params = {
                 "type": "random",
-                "params": {"Scale": np.random.uniform(0.25, 2.5)},
+                "params": {"Scale": np.random.uniform(0.5, 1)},
                 "material_name": "BackgroundTexture",
             }
         textures.add_texture(self, obj, texture_params)
@@ -786,17 +788,16 @@ class BlenderScene(object):
         scene = self.context.scene
 
         scene.use_nodes = True
-        scene.render.engine = "CYCLES"
-        scene.cycles.samples = 1
 
         # Give each object in the scene a unique pass index
         scene.view_layers["ViewLayer"].use_pass_object_index = True
+        scene.view_layers["ViewLayer"].use_pass_normal = True
+        scene.view_layers["ViewLayer"].use_pass_z = True
+        scene.view_layers["ViewLayer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
                 object.pass_index = 0
-            elif len(objects) < 3:
-                object.pass_index = (i + 1) * 100
             else:
                 object.pass_index = (i + 1) * 10
 
@@ -809,24 +810,41 @@ class BlenderScene(object):
 
         # Create a node for outputting the rendered image
         image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        image_output_node.name = "Image_Output"
         image_output_node.label = "Image_Output"
         path = os.path.join(self.scene_dir, "images")
         image_output_node.base_path = path
-        image_output_node.location = 400, 0
+        image_output_node.location = 600, 0
 
         # Create a node for outputting the depth of each pixel from the camera
         depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        depth_output_node.name = "Depth_Output"
         depth_output_node.label = "Depth_Output"
         path = os.path.join(self.scene_dir, "depth")
         depth_output_node.base_path = path
-        depth_output_node.location = 400, -100
+        depth_output_node.location = 600, -100
+
+        # Create a node for outputting the surface normal of each object
+        normal_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        normal_output_node.label = "Normal_Output"
+        normal_output_node.name = "Normal_Output"
+        path = os.path.join(self.scene_dir, "normals")
+        normal_output_node.base_path = path
+        normal_output_node.location = 600, -200
 
         # Create a node for outputting the index of each object
         mask_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         mask_output_node.label = "Mask_Output"
+        mask_output_node.name = "Mask_Output"
+        mask_output_node.format.color_mode = "RGB"
         path = os.path.join(self.scene_dir, "masks")
         mask_output_node.base_path = path
-        mask_output_node.location = 400, -200
+        mask_output_node.location = 600, -300
+
+        math_node = node_tree.nodes.new(type="CompositorNodeMath")
+        math_node.operation = "DIVIDE"
+        math_node.inputs[1].default_value = 255.0
+        math_node.location = 400, -300
 
         # Create a node for the output from the renderer
         render_layers_node = node_tree.nodes.new(type="CompositorNodeRLayers")
@@ -836,17 +854,21 @@ class BlenderScene(object):
         links.new(
             render_layers_node.outputs["Image"], image_output_node.inputs["Image"]
         )
+        links.new(render_layers_node.outputs["Mist"], depth_output_node.inputs["Image"])
+        links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])
+        links.new(math_node.outputs[0], mask_output_node.inputs["Image"])
         links.new(
-            render_layers_node.outputs["Depth"], depth_output_node.inputs["Image"]
-        )
-        links.new(
-            render_layers_node.outputs["IndexOB"], mask_output_node.inputs["Image"]
+            render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
 
-        bpy.ops.render.render(animation=True, layer="Indexes")
+        bpy.ops.wm.save_mainfile(
+            filepath=self.scene_dir + "/scene.blend", check_existing=False
+        )
 
-    def render_ground_truth(self, output_dir="images"):
-        output_dir = os.path.join(self.scene_dir, output_dir, "gt_")
+        bpy.ops.render.render(animation=True, write_still=True)
+
+    def render_ground_truth(self, output_dir="Shaded"):
+        output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
         world_nodes = self.data.worlds["World"].node_tree.nodes
         world_nodes["Background"].inputs["Color"].default_value = (0.3, 0.3, 0.3, 1)
@@ -867,7 +889,8 @@ class BlenderScene(object):
 
         self.context.scene.render.film_transparent = False
 
-        bpy.ops.render.render(animation=True)
+        self.renderer.set_render_settings()
+        bpy.ops.render.render(animation=True, write_still=True)
 
     def create_default_scene(self, args):
         # Clear any previous meshes
@@ -907,7 +930,7 @@ class BlenderScene(object):
                 texture_params=texture, add_displacement=displacement
             )
 
-        bpy.ops.wm.save_as_mainfile(
+        bpy.ops.wm.save_mainfile(
             filepath=self.scene_dir + "/scene.blend", check_existing=False
         )
 

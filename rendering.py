@@ -12,7 +12,7 @@ class RenderEngine:
     """
 
     def __init__(
-        self, scene, device="CUDA", engine="CYCLES", render_size=256, samples=256
+        self, scene, device="CUDA", engine="CYCLES", render_size=(256), samples=256
     ):
         """
         Params:
@@ -37,8 +37,8 @@ class RenderEngine:
         """
         Renders the video to a given folder.
         """
-        if output_dir[:-4] != "img_":
-            output_dir = os.path.join(output_dir, "img_")
+        if not output_dir.endswith("Image"):
+            output_dir = os.path.join(output_dir, "Image")
 
         self.set_render_settings()
         self.scene.render.filepath = output_dir
