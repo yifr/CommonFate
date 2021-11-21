@@ -6,9 +6,9 @@
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=high-capacity
-#SBATCH -p normal
+#SBATCH -p tenenbaum
 #SBATCH --mem=5G
 
-Blender/blender -b -P scenes.py -- --root_dir /om2/user/yyf/CommonFate/gestalt_v3/ --n_scenes 1000 --start_scene 0 --render_size 512 --render_views all --scene_config configs/multi_shape_deformed_background.json --engine CYCLES --device CUDA
+Blender/blender -b -noaudio -P generate_scenes.py -- --root_dir /om2/user/yyf/CommonFate/scenes/gestalt_masks_multiscene/ --n_scenes 100 --start_scene 0 --render_size 512 --render_views masks --scene_config configs/multi_shape_textured_background.json --engine CYCLES --n_frames 50 --samples 128 --device CUDA
 
 

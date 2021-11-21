@@ -38,7 +38,7 @@ parser.add_argument(
     "--n_scenes", type=int, help="Number of scenes to generate", default=1000
 )
 parser.add_argument(
-    "--n_frames", type=int, help="Number of frames to render per scene", default=10
+    "--n_frames", type=int, help="Number of frames to render per scene", default=100
 )
 parser.add_argument(
     "--start_scene",
@@ -97,7 +97,7 @@ parser.add_argument(
     "--samples",
     type=int,
     default=64,
-    help="Samples to use in rendering (fewer samples renders faster",
+    help="Samples to use in rendering (fewer samples renders faster)",
 )
 
 # Background texture settings
@@ -514,8 +514,10 @@ class BlenderScene(object):
         # Add texture to background plane
         if not texture_params:
             texture_params = {
-                "type": "random",
-                "params": {"Scale": np.random.uniform(0.5, 1)},
+                "type": "voronoi",
+                "params": {"Scale": np.random.uniform(0.4, 1),
+                           "Randomness": np.random.uniform(0.5, 1)
+                           },
                 "material_name": "BackgroundTexture",
             }
         textures.add_texture(self, obj, texture_params)
@@ -586,7 +588,7 @@ class BlenderScene(object):
         bpy.context.view_layer.objects.active = light_object
 
         light_object.data.use_shadow = False
-        light_object.cycles["cast_shadow"] = False
+        light_object.cycles.cast_shadow = False
 
         light_object.location = location
         light_object.rotation_euler = rotation
@@ -790,31 +792,29 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["ViewLayer"].use_pass_object_index = True
-        scene.view_layers["ViewLayer"].use_pass_normal = True
-        scene.view_layers["ViewLayer"].use_pass_z = True
-        scene.view_layers["ViewLayer"].use_pass_mist = True
+        scene.view_layers["View Layer"].use_pass_object_index = True
+        scene.view_layers["View Layer"].use_pass_normal = True
+        scene.view_layers["View Layer"].use_pass_z = True
+        scene.view_layers["View Layer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
                 object.pass_index = 0
             else:
-                object.pass_index = (i + 1) * 10
+                object.pass_index = (i + 1) * 20
 
         node_tree = scene.node_tree
         links = node_tree.links
 
-        ## Clear default nodes
-        for node in node_tree.nodes:
-            node_tree.nodes.remove(node)
-
         # Create a node for outputting the rendered image
+        """
         image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         image_output_node.name = "Image_Output"
         image_output_node.label = "Image_Output"
         path = os.path.join(self.scene_dir, "images")
         image_output_node.base_path = path
         image_output_node.location = 600, 0
+        """
 
         # Create a node for outputting the depth of each pixel from the camera
         depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
@@ -822,7 +822,7 @@ class BlenderScene(object):
         depth_output_node.label = "Depth_Output"
         path = os.path.join(self.scene_dir, "depth")
         depth_output_node.base_path = path
-        depth_output_node.location = 600, -100
+        depth_output_node.location = 600, 0
 
         # Create a node for outputting the surface normal of each object
         normal_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
@@ -830,7 +830,7 @@ class BlenderScene(object):
         normal_output_node.name = "Normal_Output"
         path = os.path.join(self.scene_dir, "normals")
         normal_output_node.base_path = path
-        normal_output_node.location = 600, -200
+        normal_output_node.location = 600, -100
 
         # Create a node for outputting the index of each object
         mask_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
@@ -839,24 +839,30 @@ class BlenderScene(object):
         mask_output_node.format.color_mode = "RGB"
         path = os.path.join(self.scene_dir, "masks")
         mask_output_node.base_path = path
-        mask_output_node.location = 600, -300
+        mask_output_node.location = 600, -200
 
         math_node = node_tree.nodes.new(type="CompositorNodeMath")
         math_node.operation = "DIVIDE"
         math_node.inputs[1].default_value = 255.0
-        math_node.location = 400, -300
+        math_node.location = 400, -200
+
+        map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
+        if 'Plane' in self.objects:
+            map_range_node.inputs['From Max'].default_value = self.objects['Plane'].location[-1]
+        else:
+            map_range_node.inputs['From Max'].default_value = 15
 
         # Create a node for the output from the renderer
-        render_layers_node = node_tree.nodes.new(type="CompositorNodeRLayers")
+        render_layers_node = node_tree.nodes["Render Layers"]
         render_layers_node.location = 0, 0
 
         # Link all the nodes together
-        links.new(
-            render_layers_node.outputs["Image"], image_output_node.inputs["Image"]
-        )
-        links.new(render_layers_node.outputs["Mist"], depth_output_node.inputs["Image"])
+        links.new(render_layers_node.outputs["Depth"], map_range_node.inputs[0])
+        links.new(map_range_node.outputs[0], depth_output_node.inputs["Image"])
+
         links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])
         links.new(math_node.outputs[0], mask_output_node.inputs["Image"])
+
         links.new(
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )

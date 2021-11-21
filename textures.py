@@ -105,10 +105,10 @@ def base_texture(
 
     nodes["Material Output"].location = (600, 0)
     output_node.location = (400, 0)
-    color_ramp.location = (300, 0)
-    texture.location = (200, 0)
-    mapping_node.location = (100, 0)
-    coordinate_node.location = (0, 0)
+    color_ramp.location = (200, 0)
+    texture.location = (0, 0)
+    mapping_node.location = (-200, 0)
+    coordinate_node.location = (-400, 0)
 
     ##############
     # Link Nodes
