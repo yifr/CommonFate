@@ -515,9 +515,10 @@ class BlenderScene(object):
         if not texture_params:
             texture_params = {
                 "type": "voronoi",
-                "params": {"Scale": np.random.uniform(0.4, 1),
-                           "Randomness": np.random.uniform(0.5, 1)
-                           },
+                "params": {
+                    "Scale": np.random.uniform(0.2, 1),
+                    "Randomness": np.random.uniform(0.55, 1),
+                },
                 "material_name": "BackgroundTexture",
             }
         textures.add_texture(self, obj, texture_params)
@@ -807,14 +808,13 @@ class BlenderScene(object):
         links = node_tree.links
 
         # Create a node for outputting the rendered image
-        """
-        image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
-        image_output_node.name = "Image_Output"
-        image_output_node.label = "Image_Output"
-        path = os.path.join(self.scene_dir, "images")
-        image_output_node.base_path = path
-        image_output_node.location = 600, 0
-        """
+        # image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        # image_output_node.name = "Image_Output"
+        # image_output_node.label = "Image_Output"
+        path = os.path.join(self.scene_dir, "images", "Image")
+        self.scene.render.filepath = path
+        # image_output_node.base_path = path
+        # image_output_node.location = 600, 0
 
         # Create a node for outputting the depth of each pixel from the camera
         depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
@@ -847,10 +847,12 @@ class BlenderScene(object):
         math_node.location = 400, -200
 
         map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
-        if 'Plane' in self.objects:
-            map_range_node.inputs['From Max'].default_value = self.objects['Plane'].location[-1]
+        if "Plane" in self.objects:
+            map_range_node.inputs["From Max"].default_value = self.objects[
+                "Plane"
+            ].location[-1]
         else:
-            map_range_node.inputs['From Max'].default_value = 15
+            map_range_node.inputs["From Max"].default_value = 15
 
         # Create a node for the output from the renderer
         render_layers_node = node_tree.nodes["Render Layers"]
@@ -923,7 +925,7 @@ class BlenderScene(object):
         #     self.generate_rotation(center_axis, mesh_id=-1)
 
         background = self.scene_config.get("background")
-        if not background or not background.get("texture"):
+        if not background:
             # Set background to white
             world_nodes = self.data.worlds["World"].node_tree.nodes
             world_nodes["Background"].inputs["Color"].default_value = (1, 1, 1, 1)
