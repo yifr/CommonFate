@@ -517,7 +517,7 @@ class BlenderScene(object):
                 "type": "voronoi",
                 "params": {
                     "Scale": np.random.uniform(0.2, 1),
-                    "Randomness": np.random.uniform(0.55, 1),
+                    "Randomness": np.random.uniform(0.65, 1),
                 },
                 "material_name": "BackgroundTexture",
             }
@@ -807,6 +807,9 @@ class BlenderScene(object):
         node_tree = scene.node_tree
         links = node_tree.links
 
+        for node in node_tree.nodes:
+            node_tree.nodes.remove(node)
+
         # Create a node for outputting the rendered image
         # image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         # image_output_node.name = "Image_Output"
@@ -847,30 +850,35 @@ class BlenderScene(object):
         math_node.location = 400, -200
 
         map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
-        if "Plane" in self.objects:
-            map_range_node.inputs["From Max"].default_value = self.objects[
-                "Plane"
-            ].location[-1]
-        else:
-            map_range_node.inputs["From Max"].default_value = 15
+        normalize_node = node_tree.nodes.new(type="CompositorNodeNormalize")
+        normalize_node.location = 300, 0
+        map_range_node.location = 400, 0
+        map_range_node.inputs["From Min"].default_value = 0
+        map_range_node.inputs["From Max"].default_value = 1
+        map_range_node.inputs["To Min"].default_value = 1
+        map_range_node.inputs["To Max"].default_value = 0
 
         # Create a node for the output from the renderer
-        render_layers_node = node_tree.nodes["Render Layers"]
+        compositor_node = node_tree.nodes.new(type="CompositorNodeComposite")
+        compositor_node.location = 600, 200
+        render_layers_node = node_tree.nodes.new(type="CompositorNodeRLayers")
         render_layers_node.location = 0, 0
 
         # Link all the nodes together
-        links.new(render_layers_node.outputs["Depth"], map_range_node.inputs[0])
+        links.new(render_layers_node.outputs["Image"], compositor_node.inputs["Image"])
+
+        # Link Depth
+        links.new(render_layers_node.outputs["Depth"], normalize_node.inputs[0])
+        links.new(normalize_node.outputs[0], map_range_node.inputs[0])
         links.new(map_range_node.outputs[0], depth_output_node.inputs["Image"])
 
+        # Link Object Index Masks
         links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])
         links.new(math_node.outputs[0], mask_output_node.inputs["Image"])
 
+        # Link depth
         links.new(
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
-        )
-
-        bpy.ops.wm.save_mainfile(
-            filepath=self.scene_dir + "/scene.blend", check_existing=False
         )
 
         bpy.ops.render.render(animation=True, write_still=True)
@@ -938,9 +946,6 @@ class BlenderScene(object):
                 texture_params=texture, add_displacement=displacement
             )
 
-        bpy.ops.wm.save_mainfile(
-            filepath=self.scene_dir + "/scene.blend", check_existing=False
-        )
 
         if args.render_views == "all":
             self.render()
@@ -956,6 +961,9 @@ class BlenderScene(object):
         # Clean up scene
         self.delete_all(obj_type="MESH")
         self.save_config()
+        bpy.ops.wm.save_mainfile(
+            filepath=self.scene_dir + "/scene.blend", check_existing=False
+        )
 
         return
 
