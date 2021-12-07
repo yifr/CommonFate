@@ -9,7 +9,7 @@
                 "shape_type": "random",
                 "shape_params": "random",
                 "scaling_params": [1.5, 1.5, 1.5, 3],
-                "texture": {"type": "voronoi", "params": {}},
+                "texture": {"type": "noise", "params": {}},
                 "rotation": true
             },
             "location": [0, 0, 0],
@@ -18,7 +18,7 @@
         }
     }, 
     "background": {
-        "texture": {},
+        "texture": {"type": "noise", "params": {}},
         "displace": false
     }
 }

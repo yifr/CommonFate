@@ -35,10 +35,10 @@ TEXTURE_MAPS = {
         "Detail Scale": [0, 5],
     },
     "ShaderNodeTexNoise": {
-        "Scale": [0.1, 1],
+        "Scale": [0.25, 1],
         "Detail": [1, 2],
-        "Roughness": [0, 1],
-        "Distortion": [0, 4],
+        "Roughness": [0.2, 1],
+        "Distortion": [0.2, 4],
     },
     "ShaderNodeTexMagic": {"Scale": [0.1, 1], "Distortion": [0.5, 10]},
     # "ShaderNodeTexChecker": {"Scale": [1, 5]},

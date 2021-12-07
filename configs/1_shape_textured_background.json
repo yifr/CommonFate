@@ -11,7 +11,7 @@
         }
     },
     "background": {
-        "texture": {"type": "voronoi", "params": {"Scale": 0.2}},
+        "texture": {"type": "voronoi", "params": {}},
         "displacement": false
     }
 }

@@ -56,6 +56,16 @@ parser.add_argument(
     default="scene_config.json",
 )
 parser.add_argument(
+    "--save_config",
+    action="store_true",
+    help="save config"
+)
+parser.add_argument(
+    "--save_blendfile",
+    action="store_true",
+    help="save blendfile"
+)
+parser.add_argument(
     "--init_config_from_scene_dir",
     action="store_true",
     help="If present, will initialize config for individual scene directories",
@@ -516,8 +526,8 @@ class BlenderScene(object):
             texture_params = {
                 "type": "voronoi",
                 "params": {
-                    "Scale": np.random.uniform(0.2, 1),
-                    "Randomness": np.random.uniform(0.65, 1),
+                    "Scale": np.random.uniform(0.02, 0.5),
+                    "Randomness": np.random.uniform(0.95, 1),
                 },
                 "material_name": "BackgroundTexture",
             }
@@ -823,18 +833,19 @@ class BlenderScene(object):
         depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         depth_output_node.name = "Depth_Output"
         depth_output_node.label = "Depth_Output"
-        path = os.path.join(self.scene_dir, "depth")
+        path = os.path.join(self.scene_dir, "depths")
         depth_output_node.base_path = path
         depth_output_node.location = 600, 0
 
-        # Create a node for outputting the surface normal of each object
-        normal_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
-        normal_output_node.label = "Normal_Output"
-        normal_output_node.name = "Normal_Output"
-        path = os.path.join(self.scene_dir, "normals")
-        normal_output_node.base_path = path
-        normal_output_node.location = 600, -100
-
+        # Create a node for outputting shaded scenes
+        """
+        shaded_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        shaded_output_node.label = "Shaded_Output"
+        shaded_output_node.name = "Shaded_Output"
+        path = os.path.join(self.scene_dir, "shaded")
+        shaded_output_node.base_path = path
+        shaded_output_node.location = 600, -100
+        """
         # Create a node for outputting the index of each object
         mask_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         mask_output_node.label = "Mask_Output"
@@ -844,6 +855,16 @@ class BlenderScene(object):
         mask_output_node.base_path = path
         mask_output_node.location = 600, -200
 
+        # Create a node for outputting the normal of each object
+        normal_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        normal_output_node.label = "Normal_Output"
+        normal_output_node.name = "Normal_Output"
+        normal_output_node.format.file_format = "OPEN_EXR"
+        normal_output_node.format.color_mode = "RGB"
+        path = os.path.join(self.scene_dir, "normals")
+        normal_output_node.base_path = path
+        normal_output_node.location = 600, -300
+
         math_node = node_tree.nodes.new(type="CompositorNodeMath")
         math_node.operation = "DIVIDE"
         math_node.inputs[1].default_value = 255.0
@@ -851,7 +872,7 @@ class BlenderScene(object):
 
         map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
         normalize_node = node_tree.nodes.new(type="CompositorNodeNormalize")
-        normalize_node.location = 300, 0
+        normalize_node.location = 100, 0
         map_range_node.location = 400, 0
         map_range_node.inputs["From Min"].default_value = 0
         map_range_node.inputs["From Max"].default_value = 1
@@ -862,7 +883,7 @@ class BlenderScene(object):
         compositor_node = node_tree.nodes.new(type="CompositorNodeComposite")
         compositor_node.location = 600, 200
         render_layers_node = node_tree.nodes.new(type="CompositorNodeRLayers")
-        render_layers_node.location = 0, 0
+        render_layers_node.location = -100, 0
 
         # Link all the nodes together
         links.new(render_layers_node.outputs["Image"], compositor_node.inputs["Image"])
@@ -875,8 +896,13 @@ class BlenderScene(object):
         # Link Object Index Masks
         links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])
         links.new(math_node.outputs[0], mask_output_node.inputs["Image"])
-
-        # Link depth
+        """
+        # Link Shaded
+        links.new(
+            render_layers_node.outputs["Normal"], shaded_output_node.inputs["Image"]
+        )
+        """
+        # Link Normals
         links.new(
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
@@ -958,12 +984,14 @@ class BlenderScene(object):
         else:
             self.render()
 
-        # Clean up scene
+        # Save and clean up scene
+        if args.save_blendfile:
+            bpy.ops.wm.save_mainfile(
+                filepath=self.scene_dir + "/scene.blend", check_existing=False
+            )
+        if args.save_config:
+            self.save_config()
         self.delete_all(obj_type="MESH")
-        self.save_config()
-        bpy.ops.wm.save_mainfile(
-            filepath=self.scene_dir + "/scene.blend", check_existing=False
-        )
 
         return
 
