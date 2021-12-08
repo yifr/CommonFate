@@ -74,8 +74,9 @@ class RenderEngine:
         print(cycles_preferences.get_devices())
         for device in cycles_preferences.devices:
             print("Activating: ", device)
-            device.use = True
-            activated_gpus.append(device.name)
+            if not device.type == "CPU":
+                device.use = True
+                activated_gpus.append(device.name)
 
         cycles_preferences.compute_device_type = device_type
 
