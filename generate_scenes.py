@@ -27,7 +27,6 @@ import BlenderArgparse
 from rendering import RenderEngine
 
 FORMAT = "%(asctime)-10s %(message)s"
-logging.basicConfig(filename="render_logs", level=logging.INFO, format=FORMAT)
 print(os.getcwd())
 
 parser = BlenderArgparse.ArgParser()
@@ -1010,7 +1009,6 @@ def main(args):
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):
         scene_dir = os.path.join(args.root_dir, "scene_%03d" % scene_num)
         os.makedirs(scene_dir, exist_ok=True)
-        logging.info("Processing scene: {}...".format(scene_dir))
 
         if args.scene_config != "random":
             if args.init_config_from_scene_dir:

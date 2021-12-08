@@ -68,10 +68,12 @@ class RenderEngine:
 
         preferences = bpy.context.preferences
         cycles_preferences = preferences.addons["cycles"].preferences
+        cycles_preferences.compute_device_type = device_type
 
         activated_gpus = []
-
+        print(cycles_preferences.get_devices())
         for device in cycles_preferences.devices:
+            print("Activating: ", device)
             device.use = True
             activated_gpus.append(device.name)
 
@@ -79,5 +81,4 @@ class RenderEngine:
 
         scene.render.tile_x = 128
         scene.render.tile_y = 128
-
         return activated_gpus
