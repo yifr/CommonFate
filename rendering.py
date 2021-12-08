@@ -64,28 +64,17 @@ class RenderEngine:
         Sets device as GPU and adjusts rendering tile size accordingly
         """
         scene.render.engine = self.engine  # use cycles for headless rendering
+        scene.cycles.device = "GPU"
 
         preferences = bpy.context.preferences
         cycles_preferences = preferences.addons["cycles"].preferences
-        cuda_devices, opencl_devices = cycles_preferences.get_devices()
-
-        if device_type == "CUDA":
-            devices = cuda_devices
-        elif device_type == "OPENCL":
-            devices = opencl_devices
-        else:
-            raise RuntimeError("Unsupported device type")
 
         activated_gpus = []
 
-        for device in devices:
-            if device.type == "CPU":
-                device.use = use_cpus
-            else:
-                device.use = True
-                activated_gpus.append(device.name)
+        for device in cycles_preferences.devices:
+            device.use = True
+            activated_gpus.append(device.name)
 
-        scene.cycles.device = "GPU"
         cycles_preferences.compute_device_type = device_type
 
         scene.render.tile_x = 128

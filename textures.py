@@ -449,6 +449,12 @@ def add_texture(scene, obj, tex_config):
         )
 
     texture_params = texture_config.get("params", {})
+    # Check if texture parameter is a range of values
+    for key in texture_params:
+        val = texture_params[key]
+        if type(val) == list or type(val) == tuple:
+            texture_params[key] = np.random.uniform(val[0], val[1])
+
     shader = Shader(texture_type)
     shader_params = TEXTURE_MAPS[shader]
     for param in shader_params:
