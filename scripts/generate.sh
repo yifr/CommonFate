@@ -8,13 +8,12 @@
 #SBATCH --constraint=12GB
 #SBATCH -p tenenbaum
 #SBATCH --mem=5G
-#SBATCH --array=1-16
-#SBATCH --output=/om/user/yyf/CommonFate/%x.%A_%a.out
-#SBATCH --error=/om/user/yyf/CommonFate/%x.%A_%a.error
+#SBATCH --array=0-15
+#SBATCH --output=/om/user/yyf/CommonFate/%x.%A_%a.log
 
 
-IDX=$((((SLURM_ARRAY_TASK_ID % 4)) + 1))
-START_SCENE=$((2500 * (($IDX - 1))))
+IDX=$((SLURM_ARRAY_TASK_ID % 4 + 1))
+START_SCENE=$((2500 * (($i % 4))))
 echo $IDX
 echo $START_SCENE
 
