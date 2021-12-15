@@ -12,8 +12,8 @@
 #SBATCH --output=/om/user/yyf/CommonFate/%x.%A_%a.log
 
 
-IDX=$((SLURM_ARRAY_TASK_ID % 4 + 1))
-START_SCENE=$((2500 * (($i % 4))))
+IDX=$((SLURM_ARRAY_TASK_ID / 4 + 1))
+START_SCENE=$((2500 * (($SLURM_ARRAY_TASK_ID % 4))))
 echo $IDX
 echo $START_SCENE
 
