@@ -4,11 +4,11 @@
             "shape_type": "superellipsoid",
             "shape_params": "random",
             "scaling_params": [10, 10, 10, 10],
-            "n_children": 2,
+            "n_children": 1,
             "child_params": {
                 "shape_type": "superquadric",
                 "shape_params": "random",
-                "scaling_params": [3, 3, 3, 6],
+                "scaling_params": [4, 4, 4, 8],
                 "texture": {"type": "voronoi", "params": {}},
                 "rotation": true
             },

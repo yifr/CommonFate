@@ -650,10 +650,10 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["ViewLayer"].use_pass_object_index = True
-        scene.view_layers["ViewLayer"].use_pass_normal = True
-        scene.view_layers["ViewLayer"].use_pass_z = True
-        scene.view_layers["ViewLayer"].use_pass_mist = True
+        scene.view_layers["View Layer"].use_pass_object_index = True
+        scene.view_layers["View Layer"].use_pass_normal = True
+        scene.view_layers["View Layer"].use_pass_z = True
+        scene.view_layers["View Layer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
@@ -850,7 +850,7 @@ class BlenderScene(object):
 
 def main(args):
     if not os.path.exists(args.root_dir):
-        os.mkdir(args.root_dir)
+        os.makedirs(args.root_dir, exist_ok=True)
         print("Created root directory: ", args.root_dir)
 
     for scene_num in range(args.start_scene, args.start_scene + args.n_scenes):

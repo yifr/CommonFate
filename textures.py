@@ -27,7 +27,7 @@ def Shader(name):
 
 
 TEXTURE_MAPS = {
-    "ShaderNodeTexVoronoi": {"Scale": [0.25, 3], "Randomness": [0, 1]},
+    "ShaderNodeTexVoronoi": {"Scale": [0.2, 1], "Randomness": [0.6, 1]},
     "ShaderNodeTexWave": {
         "Scale": [0.1, 1],
         "Distortion": [0, 7.5],

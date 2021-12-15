@@ -1,4 +1,3 @@
-from operator import is_
 import os
 import numpy as np
 from scipy.spatial import Delaunay
