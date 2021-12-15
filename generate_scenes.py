@@ -54,16 +54,8 @@ parser.add_argument(
     help="path to config for scene",
     default="scene_config.json",
 )
-parser.add_argument(
-    "--save_config",
-    action="store_true",
-    help="save config"
-)
-parser.add_argument(
-    "--save_blendfile",
-    action="store_true",
-    help="save blendfile"
-)
+parser.add_argument("--save_config", action="store_true", help="save config")
+parser.add_argument("--save_blendfile", action="store_true", help="save blendfile")
 parser.add_argument(
     "--init_config_from_scene_dir",
     action="store_true",
@@ -210,102 +202,6 @@ class BlenderScene(object):
             )
         return object_config
 
-    def bmesh_copy_from_object(
-        self, obj, transform=True, triangulate=True, apply_modifiers=False
-    ):
-        """
-        Returns a transformed, triangulated copy of the mesh
-        """
-
-        assert obj.type == "MESH"
-
-        if apply_modifiers and obj.modifiers:
-            me = obj.to_mesh(bpy.context.scene, True, "PREVIEW", calc_tessface=False)
-            bm = bmesh.new()
-            bm.from_mesh(me)
-            bpy.data.meshes.remove(me)
-        else:
-            me = obj.data
-            if obj.mode == "EDIT":
-                bm_orig = bmesh.from_edit_mesh(me)
-                bm = bm_orig.copy()
-            else:
-                bm = bmesh.new()
-                bm.from_mesh(me)
-
-        # Remove custom data layers to save memory
-        for elem in (bm.faces, bm.edges, bm.verts, bm.loops):
-            for layers_name in dir(elem.layers):
-                if not layers_name.startswith("_"):
-                    layers = getattr(elem.layers, layers_name)
-                    for layer_name, layer in layers.items():
-                        layers.remove(layer)
-
-        if transform:
-            bm.transform(obj.matrix_world)
-
-        if triangulate:
-            bmesh.ops.triangulate(bm, faces=bm.faces)
-
-        return bm
-
-    def bmesh_check_intersect_objects(self, obj, obj2):
-        """
-        Check if any faces intersect with the other object
-
-        returns a boolean
-        """
-        assert obj != obj2
-
-        # Triangulate
-        bm = self.bmesh_copy_from_object(obj, transform=True, triangulate=True)
-        bm2 = self.bmesh_copy_from_object(obj2, transform=True, triangulate=True)
-
-        # If bm has more edges, use bm2 instead for looping over its edges
-        # (so we cast less rays from the simpler object to the more complex object)
-        if len(bm.edges) > len(bm2.edges):
-            bm2, bm = bm, bm2
-
-        # Create a real mesh (lame!)
-        scene = bpy.context.scene
-        me_tmp = bpy.data.meshes.new(name="~temp~")
-        bm2.to_mesh(me_tmp)
-        bm2.free()
-        obj_tmp = bpy.data.objects.new(name=me_tmp.name, object_data=me_tmp)
-        bpy.context.collection.objects.link(obj_tmp)
-        bpy.context.view_layer.update()
-        ray_cast = obj_tmp.ray_cast
-
-        intersect = False
-
-        EPS_NORMAL = 0.000001
-        EPS_CENTER = 0.01  # should always be bigger
-
-        # for ed in me_tmp.edges:
-        for ed in bm.edges:
-            v1, v2 = ed.verts
-
-            # setup the edge with an offset
-            co_1 = v1.co.copy()
-            co_2 = v2.co.copy()
-            co_mid = (co_1 + co_2) * 0.5
-            no_mid = (v1.normal + v2.normal).normalized() * EPS_NORMAL
-            co_1 = co_1.lerp(co_mid, EPS_CENTER) + no_mid
-            co_2 = co_2.lerp(co_mid, EPS_CENTER) + no_mid
-
-            success, co, no, index = ray_cast(co_1, co_2 - co_1, ed.calc_length())
-            if success:
-                intersect = True
-                break
-
-        bpy.context.collection.objects.unlink(obj_tmp)
-        bpy.data.objects.remove(obj_tmp)
-        bpy.data.meshes.remove(me_tmp)
-
-        bpy.context.view_layer.update()
-
-        return intersect
-
     def intersection_check(self, obj, collection=None):
         # check every object for intersection with every other object
         self.set_mode("OBJECT")
@@ -333,48 +229,7 @@ class BlenderScene(object):
                     )
                     return True
 
-                # bm1 = self.bmesh_copy_from_object(obj)
-                # bm2 = self.bmesh_copy_from_object(obj_next)
-
-                # bm1.transform(obj.matrix_world)
-                # bm2.transform(obj_next.matrix_world)
-
-                # # make BVH tree from BMesh of objects
-                # obj_now_BVHtree = BVHTree.FromBMesh(bm1)
-                # obj_next_BVHtree = BVHTree.FromBMesh(bm2)
-
-                # # get intersecting pairs
-                # inter = obj_now_BVHtree.overlap(obj_next_BVHtree)
-                # if len(inter) > 10:
-                #     return True
-
         return False
-
-    def add_mesh(self, id, verts, faces, collection=None):
-        """
-        Adds a mesh to Blender with specified id and collection (if specified)
-        Params:
-            id: str: name of mesh
-            verts: list: list of vertices
-            faces: list: list of faces
-        """
-        mesh = self.data.meshes.new(id)
-        obj = self.data.objects.new(mesh.name, mesh)
-
-        # Objects are assigned to unique collections if they belong
-        # to a larger shape hierarchy
-        if collection:
-            col = self.data.collections.get(collection)
-            if not col:
-                col = self.data.collections.new(collection)
-                self.context.scene.collection.children.link(col)
-        else:
-            col = self.data.collections.get("Collection")
-
-        col.objects.link(obj)
-        # self.context.view_layer.objects.active = obj
-        mesh.from_pydata(verts, [], faces)
-        return obj
 
     def add_objects(self, scene_config=None):
         """
@@ -392,8 +247,8 @@ class BlenderScene(object):
             shape_params = object_config.get("shape_params")
             scaling_params = object_config.get("scaling_params")
             shape_type = object_config.get("shape_type")
+            n_children = object_config.get("n_children")
             child_params = object_config.get("child_params")
-            n_points = object_config.get("n_points", 50)
             location = object_config.get("location")
 
             is_parent = True if child_params else False
@@ -402,11 +257,9 @@ class BlenderScene(object):
                 shape_params=shape_params,
                 scaling_params=scaling_params,
                 is_parent=is_parent,
-                n_points=n_points,
+                object_id=object_id,
             )
-            faces = shape.faces
-            verts = shape.verts
-
+            print(shape)
             # Create meshes along the parent shape manifold
             # and update the config accordingly
             if is_parent:
@@ -419,6 +272,8 @@ class BlenderScene(object):
 
                 i = 0
                 location = location if location else np.array([0, 0, 0])
+
+                verts = shape.sample_points(n_children, np.mean(scaling_params))
                 verts += location
                 for vert in verts:
                     if len(object_config["children"]) > i:
@@ -427,54 +282,41 @@ class BlenderScene(object):
                         child_shape_params = child_config.get("shape_params")
                         child_scaling_params = child_config.get("scaling_params")
 
+                    child_id = f"{object_id}_{i}"
                     child_object = shapes.create_shape(
                         shape_type=child_shape_type,
                         shape_params=child_shape_params,
                         scaling_params=child_scaling_params,
+                        object_id=child_id,
                         is_parent=False,
                         n_points=50,
                     )
-                    child_id = f"{object_id}_{i}"
-
-                    child_verts = child_object.verts
-                    child_faces = child_object.faces
-                    obj = self.add_mesh(
-                        child_id,
-                        verts=child_verts,
-                        faces=child_faces,
-                        collection=object_id,
-                    )
-
+                    child_object.obj_id = child_id
+                    obj = child_object.add_mesh()
                     obj.location = vert
                     obj.keyframe_insert("location", frame=1)
 
                     bpy.context.view_layer.update()
-                    intersection = self.intersection_check(obj, object_id)
-                    if intersection:
-                        self.delete(obj)
-                    else:
-                        print(f"Adding child ID: {child_id}")
-                        all_object_configs[child_id] = {
-                            "shape_type": child_object.shape_type,
-                            "shape_params": child_object.shape_params,
-                            "scaling_params": child_object.scaling_params,
-                            "texture": child_params.get("texture"),
-                            "rotation": child_params.get("rotation"),
-                            "parent_id": object_id,
-                        }
-                        object_config["children"].append(child_id)
+
+                    print(f"Adding child ID: {child_id}")
+                    all_object_configs[child_id] = {
+                        "shape_type": child_object.shape_type,
+                        "shape_params": child_object.shape_params,
+                        "scaling_params": child_object.scaling_params,
+                        "texture": child_params.get("texture"),
+                        "rotation": child_params.get("rotation"),
+                        "parent_id": object_id,
+                    }
+                    object_config["children"].append(child_id)
 
                     i += 1
-
-                if len(object_config["children"]) == 0:
-                    del all_object_configs[object_id]
 
             # Otherwise just add a mesh in normally and update the config to
             # reflect the shape parameters
             is_child = object_config.get("parent_id")
             if not is_parent and not is_child:
+                shape.add_mesh()
 
-                self.add_mesh(object_id, verts=verts, faces=faces)
                 if location is None or location == "random":
                     loc_x = np.random.uniform(5, 12)
                     loc_y = np.random.uniform(-14, 6)
@@ -488,8 +330,9 @@ class BlenderScene(object):
             object_config["shape_type"] = shape.shape_type
             object_config["scaling_params"] = shape.scaling_params
 
-        print(all_object_configs.keys())
-        return
+            print(all_object_configs.keys())
+
+            return
 
     def add_background_plane(self, texture_params={}, add_displacement=True):
         """
@@ -651,17 +494,22 @@ class BlenderScene(object):
         hierarchy_config["axis"] = np.zeros(shape=[n_frames, 3])
         location = hierarchy_config.get("location", np.array([0, 0, 0]))
 
-        shape = shapes.create_shape(
-            hierarchy_config["shape_type"],
-            hierarchy_config["shape_params"],
-            hierarchy_config["scaling_params"],
-            is_parent=True,
-            n_points=hierarchy_config["n_points"],
-        )
+        # shape = shapes.create_shape(
+        #     hierarchy_config["shape_type"],
+        #     hierarchy_config["shape_params"],
+        #     hierarchy_config["scaling_params"],
+        #     is_parent=True,
+        #     n_children=hierarchy_config["n_children"],
+        # )
 
+        verts = []
+        for child_id in hierarchy_config["children"]:
+            verts.append(self.objects[child_id].location)
+
+        verts = np.array(verts)
         rotation_axis = np.random.uniform(-1, 1, 3)
         degrees = np.linspace(0, 360, n_frames)
-        verts = shape.verts
+
         verts += location
 
         print(f"Rotating children in hierarchy: {collection_id}...")
@@ -802,10 +650,10 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["View Layer"].use_pass_object_index = True
-        scene.view_layers["View Layer"].use_pass_normal = True
-        scene.view_layers["View Layer"].use_pass_z = True
-        scene.view_layers["View Layer"].use_pass_mist = True
+        scene.view_layers["ViewLayer"].use_pass_object_index = True
+        scene.view_layers["ViewLayer"].use_pass_normal = True
+        scene.view_layers["ViewLayer"].use_pass_z = True
+        scene.view_layers["ViewLayer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
@@ -970,7 +818,6 @@ class BlenderScene(object):
             self.add_background_plane(
                 texture_params=texture, add_displacement=displacement
             )
-
 
         if args.render_views == "all":
             self.render()

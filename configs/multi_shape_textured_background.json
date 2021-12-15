@@ -4,12 +4,12 @@
             "shape_type": "superellipsoid",
             "shape_params": "random",
             "scaling_params": [10, 10, 10, 10],
-            "n_points": 4,
+            "n_children": 4,
             "child_params": {
                 "shape_type": "random",
                 "shape_params": "random",
-                "scaling_params": [1.5, 1.5, 1.5, 3],
-                "texture": {"type": "noise", "params": {}},
+                "scaling_params": [2, 2, 2, 4],
+                "texture": {"type": "voronoi", "params": {}},
                 "rotation": true
             },
             "location": [0, 0, 0],

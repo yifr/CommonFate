@@ -1,10 +1,10 @@
 {
     "objects": {
         "s1": {
-            "shape_type": "superellipsoid",
+            "shape_type": "shapegenerator",
             "shape_params": "random",
-            "texture": {"type": "voronoi", "params": {"Scale": [0.25, 1.25], "Randomness": [0.75, 1]}, "transparent": false},
-            "scaling_params": [10, 10, 10, 16],
+            "texture": {"type": "voronoi", "params": {"Scale": [0.5, 2.25], "Randomness": [0.75, 1]}, "transparent": false},
+            "scaling_params": [7.5, 7.5, 7.5],
             "rotation": true,
             "translation": false,
             "location": [0, 0, 0]
