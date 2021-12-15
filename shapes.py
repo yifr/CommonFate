@@ -158,7 +158,7 @@ class SuperQuadric:
         points.append(current_point)
 
         candidate_points = self.verts.copy()
-        candidate_points.shuffle()
+        np.random.shuffle(candidate_points)
 
         for i in range(1, n):
             if dist is None:
@@ -178,7 +178,7 @@ class SuperQuadric:
 
                 candidate_points = new_candidates
                 current_point_idx = np.random.choice(range(len(candidate_points)))
-                current_point = candidate_points[candidate_point_idx]
+                current_point = candidate_points[current_point_idx]
                 points.append(current_point)
 
         return np.array(points)
