@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 from scipy.spatial import Delaunay
 
@@ -153,31 +154,32 @@ class SuperQuadric:
 
         points = []
         starting_idx = np.random.choice(range(len(self.verts)))
-        starting_point = self.verts[starting_idx]
-        points.append(starting_point)
+        current_point = self.verts[starting_idx]
+        points.append(current_point)
+
+        candidate_points = self.verts.copy()
+        candidate_points.shuffle()
+
         for i in range(1, n):
             if dist is None:
                 idx = np.random.choice(range(len(self.verts)), n, replace=False)
                 point = self.verts[idx]
                 points.append(point)
             else:
-                reject = True
-                while reject:
-                    proposal_idx = np.random.choice(range(len(self.verts)))
-                    proposal = self.verts[proposal_idx]
+                new_candidates = []
+                for point in candidate_points:
+                    if dist(point, current_point) > min_dist:
+                        new_candidates.append(point)
 
-                    # Calculate distance to all existing sampled points
-                    reject = False
-                    for point in points:
-                        prop_dist = dist(point, proposal)
-                        if prop_dist < min_dist:
-                            print(f"Rejecting point {proposal}")
-                            reject = True
-                            break
+                if len(new_candidates) < 1:
+                    print(f"COULD NOT FIND ENOUGH CANDIDATE POINTS for {n} shapes on manifold: {self.shape_params}")
+                    sys.exit(1)
+                    return
 
-                    if not reject:
-                        points.append(proposal)
-                        break
+                candidate_points = new_candidates
+                current_point_idx = np.random.choice(range(len(candidate_points)))
+                current_point = candidate_points[candidate_point_idx]
+                points.append(current_point)
 
         return np.array(points)
 
