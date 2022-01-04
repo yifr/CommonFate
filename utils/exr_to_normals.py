@@ -21,7 +21,8 @@ opt = p.parse_args()
 def exr2numpy(exr, maxvalue=15.,normalize=False):
     """ converts 1-channel exr-data to 2D numpy arrays """
     # normalize
-    RGB = cv2.imread(exr, cv2.IMREAD_UNCHANGED)
+    BGR = cv2.imread(exr, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+    RGB = cv2.cvtColor(BGR, cv2.COLOR_BGR2RGB)
     data = np.array(RGB)
     data[data > maxvalue] = maxvalue
     data[data == maxvalue] = 0.
@@ -66,9 +67,9 @@ def main(trgt_path):
         #im.save(str(trgt_fname)+".png")
 
         # extrinsics_fname =  str(base_dir / 'pose' / fname)+".txt"
-        extrinsics_fname =  str(opt.extrinsics_dir)+"/extrinsics.txt"
+        extrinsics_fname =  str(opt.extrinsics_dir)+"/camera_extrinsics.txt"
 
-        extrinsics = load_pose(extrinsics_fname)
+        extrinsics = load_pose(extrinsics_fname) * -1
         rotation = np.linalg.inv(extrinsics[:3,:3])
         rotated = np.einsum('ij,abj->abi',rotation,np_array)
         #print("before", rotated[127,127,:])
