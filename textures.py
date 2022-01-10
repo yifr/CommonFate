@@ -29,10 +29,11 @@ def Shader(name):
 TEXTURE_MAPS = {
     "ShaderNodeTexVoronoi": {"Scale": [0.2, 1], "Randomness": [0.6, 1]},
     "ShaderNodeTexWave": {
-        "Scale": [0.1, 1],
-        "Distortion": [0, 7.5],
-        "Detail": [0, 5],
-        "Detail Scale": [0, 5],
+        "Scale": [0.25, 0.75],
+        "Distortion": [25.0, 50.0],
+        "Detail": [0, 2],
+        "Detail Scale": [0.5, 1],
+        "Detail Roughness": [0.25, 0.75]
     },
     "ShaderNodeTexNoise": {
         "Scale": [0.25, 1],
