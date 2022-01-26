@@ -27,13 +27,13 @@ def Shader(name):
 
 
 TEXTURE_MAPS = {
-    "ShaderNodeTexVoronoi": {"Scale": [0.2, 1], "Randomness": [0.6, 1]},
+    "ShaderNodeTexVoronoi": {"Scale": [0.2, 1], "Randomness": [0.9, 1]},
     "ShaderNodeTexWave": {
         "Scale": [0.25, 0.75],
         "Distortion": [25.0, 50.0],
         "Detail": [0, 2],
         "Detail Scale": [0.5, 1],
-        "Detail Roughness": [0.25, 0.75]
+        "Detail Roughness": [0.25, 0.75],
     },
     "ShaderNodeTexNoise": {
         "Scale": [0.25, 1],
@@ -103,6 +103,10 @@ def base_texture(
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
     mapping_node = nodes.new(type="ShaderNodeMapping")
     coordinate_node = nodes.new(type="ShaderNodeTexCoord")
+
+    # Add random noise to texture generator
+    mapping_node.inputs["Location"].default_value = np.random.randint(-1000, 1000, 3)
+    mapping_node.inputs["Rotation"].default_value = np.random.randint(0, 360, 3)
 
     nodes["Material Output"].location = (600, 0)
     output_node.location = (400, 0)
