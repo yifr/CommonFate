@@ -756,7 +756,7 @@ class BlenderScene(object):
 
         bpy.ops.render.render(animation=True, write_still=True)
 
-    def render_ground_truth(self, output_dir="Shaded"):
+    def render_ground_truth(self, output_dir="shaded"):
         output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
         world_nodes = self.data.worlds["World"].node_tree.nodes

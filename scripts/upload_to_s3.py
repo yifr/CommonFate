@@ -38,7 +38,7 @@ def main():
     b.Acl().put(ACL="public-read")
     root_path = "/om2/user/yyf/CommonFate/scenes"
     data_path = root_path + "/test_*/**/*/*/*" # Upload PNGs
-    overwrite = False
+    overwrite = True
     for file_path in glob(data_path):
         if "." in file_path:
             target = file_path.split(root_path)[1][1:]
@@ -47,6 +47,7 @@ def main():
                 continue
 
             print(target)
+            image = Image.open(file_path)
             s3.Object(bucket, target).put(Body=open(file_path,'rb')) ## upload stimuli
             s3.Object(bucket, target).Acl().put(ACL='public-read') ## set access controls
 
