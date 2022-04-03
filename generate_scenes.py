@@ -643,7 +643,7 @@ class BlenderScene(object):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
 
-    def render_masks(self, output_dir="masks"):
+    def generate_masks(self, output_dir="masks"):
         objects = self.data.objects
         scene = self.context.scene
 
@@ -754,32 +754,33 @@ class BlenderScene(object):
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
 
-        bpy.ops.render.render(animation=True, write_still=True)
 
-    def render_ground_truth(self, output_dir="shaded"):
+    def generate_ground_truth(self, output_dir="shaded"):
         output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
+        background_plane = bpy.data.objects["Plane"]
+        self.set_mode("OBJECT", "MESH")
+        self.delete(background_plane)
+
         world_nodes = self.data.worlds["World"].node_tree.nodes
-        world_nodes["Background"].inputs["Color"].default_value = (0.3, 0.3, 0.3, 1)
+        world_nodes["Background"].inputs["Color"].default_value = np.random.rand(4)
         world_nodes["Background"].inputs["Strength"].default_value = 1
         self.objects["Light"].data.energy = 1.5
+        self.objects["Light"].data.use_shadow = True
 
         print("[Turning off texture]")
         for mat in bpy.data.materials:
             mat.use_nodes = False
             print(mat.name)
-            if mat.name != "BackgroundTexture":
-                color = list(np.random.random(3))
-                color.append(1)
-                mat.diffuse_color = color
-                mat.shadow_method = "OPAQUE"
-            else:
-                mat.diffuse_color = (0, 0, 0, 0)
+
+        for obj in bpy.data.objects:
+            if obj.type == "MESH":
+                obj.active_material.diffuse_color = list(np.random.rand(3)) + [1]
+                obj.active_material.shadow_method = "OPAQUE"
 
         self.context.scene.render.film_transparent = False
 
         self.renderer.set_render_settings()
-        bpy.ops.render.render(animation=True, write_still=True)
 
     def create_default_scene(self, args):
         # Clear any previous meshes
@@ -819,16 +820,15 @@ class BlenderScene(object):
                 texture_params=texture, add_displacement=displacement
             )
 
-        if args.render_views == "all":
-            self.render()
-            self.render_masks()
-            self.render_ground_truth()
-        elif args.render_views == "ground_truth":
-            self.render_ground_truth()
+        if args.render_views == "ground_truth":
+            self.generate_masks()
+            self.generate_ground_truth()
+            bpy.ops.render.render(animation=True, write_still=True)
         elif args.render_views == "masks":
-            self.render_masks()
+            self.generate_masks()
+            bpy.ops.render.render(animation=True, write_still=True)
         else:
-            self.render()
+            print(f"{args.render_views} is not defined. No images will be rendered.")
 
         # Save and clean up scene
         if args.save_blendfile:

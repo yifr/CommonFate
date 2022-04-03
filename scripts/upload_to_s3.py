@@ -28,16 +28,11 @@ def check_exists(s3, bucket_name, stim_name):
 def main():
     bucket = "gestalt-scenes"
     s3 = get_client()
-    try:
-        b = s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={"LocationConstraint": "us-east-2"})
-        print('Created new bucket.')
-    except Exception as e:
-        b = s3.Bucket(bucket)
-        logging.error(e)
+    b = s3.Bucket(bucket)
 
     b.Acl().put(ACL="public-read")
-    root_path = "/om2/user/yyf/CommonFate/scenes"
-    data_path = root_path + "/test_*/**/*/*/*" # Upload PNGs
+    root_path = "/om/user/yyf/CommonFate/scenes"
+    data_path = root_path + "/test_ground_truth/**/*/*/*" # Upload PNGs
     overwrite = True
     for file_path in glob(data_path):
         if "." in file_path:
@@ -51,7 +46,7 @@ def main():
             s3.Object(bucket, target).put(Body=open(file_path,'rb')) ## upload stimuli
             s3.Object(bucket, target).Acl().put(ACL='public-read') ## set access controls
 
-    data_path = root_path + "/test_*/**/*/*" # Upload everything else
+    data_path = root_path + "/test_ground_truth/**/*/*" # Upload everything else
     for file_path in glob(data_path):
         if "." in file_path:
 
