@@ -108,6 +108,10 @@ parser.add_argument(
     default="textured",
     help="Options: white | textured | none",
 )
+
+parser.add_argument("--generate_sequential_textures", action="store_true")
+parser.add_argument("--texture", type=str, default=None, help="Texture for scene")
+
 args = parser.parse_args()
 
 
@@ -121,6 +125,8 @@ class BlenderScene(object):
         n_frames=100,
         render_size=512,
         samples=128,
+        texture_scale=None,
+        texture_distortion=None,
         *args,
         **kwargs,
     ):
@@ -142,6 +148,9 @@ class BlenderScene(object):
         self.render_frame_boundaries = None
         self.args = args
         self.kwargs = kwargs
+
+        self.texture_scale = texture_scale
+        self.texture_distortion = texture_distortion
 
         self.scene.frame_start = 1
         self.scene.frame_end = n_frames
@@ -364,15 +373,6 @@ class BlenderScene(object):
         status = bpy.ops.uv.unwrap()
 
         # Add texture to background plane
-        if not texture_params:
-            texture_params = {
-                "type": "voronoi",
-                "params": {
-                    "Scale": np.random.uniform(0.02, 0.5),
-                    "Randomness": np.random.uniform(0.95, 1),
-                },
-                "material_name": "BackgroundTexture",
-            }
         textures.add_texture(self, obj, texture_params)
 
         if add_displacement:
@@ -574,6 +574,14 @@ class BlenderScene(object):
                 continue
             else:
                 texture_config = object_config.get("texture")
+                if self.texture_scale:
+                    texture_config["params"]["Scale"] = self.texture_scale
+                if self.texture_distortion:
+                    distortion_key = self.texture_distortion[0]
+                    texture_config["params"][distortion_key] = self.texture_distortion[
+                        1
+                    ]
+
                 obj = self.data.objects[object_id]
                 texture = textures.add_texture(self, obj, texture_config)
                 object_config["texture"] = texture
@@ -650,10 +658,10 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["View Layer"].use_pass_object_index = True
-        scene.view_layers["View Layer"].use_pass_normal = True
-        scene.view_layers["View Layer"].use_pass_z = True
-        scene.view_layers["View Layer"].use_pass_mist = True
+        scene.view_layers["ViewLayer"].use_pass_object_index = True
+        scene.view_layers["ViewLayer"].use_pass_normal = True
+        scene.view_layers["ViewLayer"].use_pass_z = True
+        scene.view_layers["ViewLayer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
@@ -754,7 +762,6 @@ class BlenderScene(object):
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
 
-
     def generate_ground_truth(self, output_dir="shaded"):
         output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
@@ -815,6 +822,12 @@ class BlenderScene(object):
             self.set_background_color(color=(255, 255, 255, 1))
         else:
             texture = background.get("texture")
+            if self.texture_scale:
+                texture["params"]["Scale"] = self.texture_scale
+            if self.texture_distortion:
+                distortion_key = self.texture_distortion[0]
+                texture["params"][distortion_key] = self.texture_distortion[1]
+
             displacement = background.get("displacement")
             self.add_background_plane(
                 texture_params=texture, add_displacement=displacement
@@ -846,6 +859,88 @@ class BlenderScene(object):
         print(f"Writing config to {config_path}")
         with open(config_path, "wb") as f:
             pickle.dump(self.scene_config, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def sequential_texture_gen(args):
+    if not os.path.exists(args.root_dir):
+        os.makedirs(args.root_dir, exist_ok=True)
+        print("Created root directory: ", args.root_dir)
+
+    texture_maps = textures.TEXTURE_MAPS
+    texture = textures.Shader(args.texture)
+    texture_params = texture_maps[texture]
+    scale_range = texture_params["Scale"]
+    if args.texture == "voronoi":
+        distortion_opt = "Randomness"
+    else:
+        distortion_opt = "Distortion"
+    distortion_range = texture_params[distortion_opt]
+
+    # Option to match scale and distortion bins by taking sqrt of
+    # desired scenes. For now hard code ~200 scenes per
+    scale_bins = np.linspace(scale_range[0], scale_range[1], 4)
+    distortion_bins = np.linspace(distortion_range[0], distortion_range[1], 5)
+
+    scene_num = args.start_scene
+    for scale in scale_bins:
+        for distortion in distortion_bins:
+            scene_dir = os.path.join(args.root_dir, "scene_%03d" % scene_num)
+            os.makedirs(scene_dir, exist_ok=True)
+
+            if args.scene_config != "random":
+                if args.init_config_from_scene_dir:
+                    config_path = os.path.join(scene_dir, args.scene_config)
+                else:
+                    config_path = args.scene_config
+                print("Loading config from path: ", config_path)
+                with open(config_path, "rb") as f:
+                    if config_path.endswith(".pkl"):
+                        scene_config = pickle.load(f)
+                    else:
+                        scene_config = json.load(f)
+                        pprint(scene_config)
+            else:
+                scene_config = configs.generate_random_config()
+                print("Generated random scene config: ")
+                pprint(scene_config)
+
+            # Create a scene and initialize some basic properties
+            scene = BlenderScene(
+                scene_dir,
+                scene_config=scene_config,
+                render_size=args.render_size,
+                device=args.device,
+                n_frames=args.n_frames,
+                engine=args.engine,
+                samples=args.samples,
+                texture_scale=scale,
+                texture_distortion=(distortion_opt, distortion),
+            )
+            scene.n_frames = args.n_frames
+
+            # Set camera properties for scene
+            camera = scene.data.objects["Camera"]
+            camera.location = [
+                18.554821014404297,
+                -18.291574478149414,
+                12.243793487548828,
+            ]
+            camera.rotation_euler = [
+                1.1093190908432007,
+                9.305318826591247e-08,
+                0.8149283528327942,
+            ]
+            camera.data.sensor_width = 50
+
+            scene.create_default_scene(args)
+
+            # Add a render timestamp
+            ts = time.time()
+            fts = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+            with open(os.path.join(scene_dir, "timestamp.txt"), "w") as f:
+                f.write("Files Rendered at: {}\n".format(fts))
+
+            scene_num += 1
 
 
 def main(args):
@@ -906,4 +1001,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(args)
+    if args.generate_sequential_textures:
+        sequential_texture_gen(args)
+    else:
+        main(args)
