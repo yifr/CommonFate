@@ -13,8 +13,12 @@ args = parser.parse_args()
 for i in range(args.start_scene, args.start_scene + args.n_videos):
     path = f"{args.root_dir}/scene_{i:03d}/images"
 
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    output_path = os.path.join(args.output_dir, f"{i:03d}.mp4")
     os.system(
-        f"ffmpeg -y -framerate 15 -i {path}/Image%04d.png -pix_fmt yuv420p -c:v libx264 movies/{i:03d}.mp4"
+        f"ffmpeg -y -framerate 15 -i {path}/Image%04d.png -pix_fmt yuv420p -c:v libx264 {output_path}"
     )
 
     """

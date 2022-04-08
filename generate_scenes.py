@@ -658,10 +658,10 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["ViewLayer"].use_pass_object_index = True
-        scene.view_layers["ViewLayer"].use_pass_normal = True
-        scene.view_layers["ViewLayer"].use_pass_z = True
-        scene.view_layers["ViewLayer"].use_pass_mist = True
+        scene.view_layers["View Layer"].use_pass_object_index = True
+        scene.view_layers["View Layer"].use_pass_normal = True
+        scene.view_layers["View Layer"].use_pass_z = True
+        scene.view_layers["View Layer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
@@ -877,9 +877,11 @@ def sequential_texture_gen(args):
     distortion_range = texture_params[distortion_opt]
 
     # Option to match scale and distortion bins by taking sqrt of
-    # desired scenes. For now hard code ~200 scenes per
-    scale_bins = np.linspace(scale_range[0], scale_range[1], 4)
-    distortion_bins = np.linspace(distortion_range[0], distortion_range[1], 5)
+    # desired scenes. For now hard code ~50 bins total
+    n_scale_bins = 7
+    n_distortion_bins = 7
+    scale_bins = np.linspace(scale_range[0], scale_range[1], n_scale_bins)
+    distortion_bins = np.linspace(distortion_range[0], distortion_range[1], n_distortion_bins)
 
     scene_num = args.start_scene
     for scale in scale_bins:
@@ -1002,6 +1004,7 @@ def main(args):
 
 if __name__ == "__main__":
     if args.generate_sequential_textures:
+        print("Generating sequential textured scenes")
         sequential_texture_gen(args)
     else:
         main(args)
