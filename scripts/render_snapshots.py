@@ -83,7 +83,7 @@ def enable_gpus(device_type="CUDA", use_cpus=False):
 def get_all_shape_params(root, subdirs):
     shape_params = dict()
     for subdir in subdirs:
-        scenes = glob(os.path.join(root, subdir, "*", "scene_*"))
+        scenes = glob(os.path.join(root, subdir, "*", "*"))
         for idx, scene in enumerate(scenes):
             if idx > 200:
                 break
