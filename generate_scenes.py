@@ -725,14 +725,23 @@ class BlenderScene(object):
         math_node.inputs[1].default_value = 255.0
         math_node.location = 400, -200
 
-        map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
-        normalize_node = node_tree.nodes.new(type="CompositorNodeNormalize")
-        normalize_node.location = 100, 0
-        map_range_node.location = 400, 0
-        map_range_node.inputs["From Min"].default_value = 0
-        map_range_node.inputs["From Max"].default_value = 1
-        map_range_node.inputs["To Min"].default_value = 1
-        map_range_node.inputs["To Max"].default_value = 0
+        depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
+        depth_output_node.label = "Depth_Output"
+        depth_output_node.name = "Depth_Output"
+        depth_output_node.format.file_format = "OPEN_EXR"
+        depth_output_node.format.color_mode = "RGB"
+        path = os.path.join(self.scene_dir, "depth")
+        depth_output_node.base_path = path
+        depth_output_node.location = 600, 0
+
+        # map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
+        # normalize_node = node_tree.nodes.new(type="CompositorNodeNormalize")
+        # normalize_node.location = 100, 0
+        # map_range_node.location = 400, 0
+        # map_range_node.inputs["From Min"].default_value = 1
+        # map_range_node.inputs["From Max"].default_value = 0
+        # map_range_node.inputs["To Min"].default_value = 0
+        # map_range_node.inputs["To Max"].default_value = 1
 
         # Create a node for the output from the renderer
         compositor_node = node_tree.nodes.new(type="CompositorNodeComposite")
@@ -744,9 +753,11 @@ class BlenderScene(object):
         links.new(render_layers_node.outputs["Image"], compositor_node.inputs["Image"])
 
         # Link Depth
-        links.new(render_layers_node.outputs["Depth"], normalize_node.inputs[0])
-        links.new(normalize_node.outputs[0], map_range_node.inputs[0])
-        links.new(map_range_node.outputs[0], depth_output_node.inputs["Image"])
+        links.new(
+            render_layers_node.outputs["Depth"], depth_output_node.inputs["Image"]
+        )
+        # links.new(normalize_node.outputs[0], map_range_node.inputs[0])
+        # links.new(map_range_node.outputs[0], depth_output_node.inputs["Image"])
 
         # Link Object Index Masks
         links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])

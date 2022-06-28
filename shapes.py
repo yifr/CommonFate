@@ -21,6 +21,22 @@ class SuperQuadric:
         obj_id="",
         collection_id=None,
     ):
+        """
+        Params:
+            shape_type: string: "supertoroid", "superellipsoid",
+            shape_params: list[float]: [s, t] \in (0, 4]
+            scaling_params: list[float]: [a1, a2, a3, a4] \in (0, inf)
+            n_points: int: number of points to compute,
+            parent_id: bool: id of parent shape
+            is_parent: bool: is this shape a parent shape
+            obj_id: string: id of object
+            collection_id: string: id of collection
+        Returns:
+            Shape object, with attributes:
+                points: np.array: x, y, z coordinates of shape
+                verts: np.array: vertices of shape
+                faces: np.array: faces of shape
+        """
         self.shape_type = shape_type
         self.shape_params = shape_params
         self.scaling_params = scaling_params
@@ -71,7 +87,7 @@ class SuperQuadric:
         """
         u = np.linspace(self.u_bounds[0], self.u_bounds[1], self.n_points)
         v = np.linspace(self.v_bounds[0], self.v_bounds[1], self.n_points)
-        u, v = np.meshgrid(u, v)
+        u, v = np.meshgrid(u, v, indexing="ij")
 
         u = u.flatten()
         v = v.flatten()
@@ -106,14 +122,46 @@ class SuperQuadric:
     def compute_faces(self):
         u = np.linspace(self.u_bounds[0], self.u_bounds[1], self.n_points)
         v = np.linspace(self.v_bounds[0], self.v_bounds[1], self.n_points)
-        u, v = np.meshgrid(u, v)
+        u, v = np.meshgrid(u, v, indexing="ij")
 
         u = u.flatten()
         v = v.flatten()
 
         points2d = np.vstack([u, v]).T
         triangulation = Delaunay(points2d)
-        return list(triangulation.simplices)
+
+        faces = list(triangulation.simplices)
+        faces = np.load(open("/Users/yoni/Projects/CommonFate/faces.npy", "rb"))
+        return faces
+
+    # subsurf
+
+    def findEdges(self, faces):
+        edges = []  # edge(vertsIDs)
+        borders = []  # border(edgesIDs)
+
+        for face in faces:
+            polys = len(face)
+            border = []
+            for i in range(polys):
+                if i == polys - 1:
+                    edgeA, edgeB = face[i], face[0]
+                else:
+                    edgeA, edgeB = face[i], face[i + 1]
+                # sort indexes
+                if edgeA > edgeB:
+                    edgeA, edgeB = edgeB, edgeA
+                newEdge = (edgeA, edgeB)
+                # is it a really NEW edge?
+                if newEdge not in edges:
+                    border.append(len(edges))
+                    edges.append(newEdge)
+                else:
+                    border.append(edges.index(newEdge))
+
+            borders.append(border)
+
+        return edges
 
     def get_verts(self, eps=0.001):
         """
@@ -172,7 +220,9 @@ class SuperQuadric:
                         new_candidates.append(point)
 
                 if len(new_candidates) < 1:
-                    print(f"COULD NOT FIND ENOUGH CANDIDATE POINTS for {n} shapes on manifold: {self.shape_params}")
+                    print(
+                        f"COULD NOT FIND ENOUGH CANDIDATE POINTS for {n} shapes on manifold: {self.shape_params}"
+                    )
                     sys.exit(1)
                     return
 

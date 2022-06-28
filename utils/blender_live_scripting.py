@@ -1,5 +1,6 @@
 import sys
 
+
 sys.path.append("/Users/yoni/Projects/CommonFate")
 import bpy
 import numpy as np
@@ -7,16 +8,8 @@ import shapes
 from scipy.spatial import Delaunay
 from pyquaternion import Quaternion
 
-# from render_scenes import delete_all
-
-# delete_all('MESH')
-
-# x, y, z = superquadrics.superellipsoid([0.2232, 0.2232], [1, 1, 1, 2], 10)
-
-# faces, verts = superquadrics.get_faces_and_verts(x, y, z)
-# print(np.array(verts).shape)
-# faces = Delaunay(np.array(verts).T, qhull_options="Tv").simplices
-
+import imp
+imp.reload(shapes)
 
 def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
     if edges is None:
@@ -28,35 +21,24 @@ def add_mesh(name, verts, faces, edges=None, col_name="Collection"):
     bpy.context.view_layer.objects.active = obj
     mesh.from_pydata(verts, edges, faces)
 
+def render_single_shape(shape_type, shape_params):
+    temp = shapes.SuperQuadric(shape_type, shape_params, [1, 1, 1, 2])
+    add_mesh("superquadric", temp.verts, temp.faces)
+    material = bpy.data.materials.new(name="Material")
+    material.use_nodes = True
+    color = list(np.random.uniform(0, 1, 3))
+    color.append(1)
 
-# add_mesh("meshtest", verts, faces)
+    material.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = color
 
-# u=np.linspace(-np.pi,np.pi, 50)
-# v=np.linspace(-np.pi,np.pi, 50)
-# u,v=np.meshgrid(u,v)
-# u=u.flatten()
-# v=v.flatten()
+    ob = bpy.context.active_object
+    if ob.data.materials:
+        # assign to 1st material slot
+        ob.data.materials[0] = material
+    else:
+        # no slots
+        ob.data.materials.append(material)
 
-
-# def fexp(func, w, m):
-#    return np.sign(func(w)) * np.abs(func(w)) ** m
-
-# eps = [1, 2.5, 2]
-# x = (2 + fexp(np.cos, u, eps[0])) * fexp(np.cos, v, eps[1])
-# y = (2 + fexp(np.cos, u, eps[0])) * fexp(np.sin, v, eps[1])
-# z = fexp(np.sin, u, eps[0])
-
-##define 2D points, as input data for the Delaunay triangulation of U
-# points2D=np.vstack([u,v]).T
-# tri = Delaunay(points2D)#triangulate the rectangle U
-
-# verts = [(x[i], y[i], z[i]) for i in range(x.shape[0])]
-# print(len(verts), tri.simplices.shape)
-
-# shape = superquadrics.SuperEllipsoid([0.5, 2.5], [1])
-# add_mesh("test", shape.verts, shape.faces)
-#shape = shapes.SuperQuadric("supertoroid", shape_params=[1.59864339, 3.80445551, 0.83916191], scaling_params=[1,1,1,2])
-#add_mesh("test", verts=shape.verts, faces=shape.faces)
 
 def rotate(obj):
     obj.rotation_mode = "QUATERNION"
@@ -96,7 +78,10 @@ def add_shapegenerator_shapes():
                 x = 0
                 y += 10 
             
-add_shapegenerator_shapes()
+#add_shapegenerator_shapes()
+
+shape = shapes.SuperQuadric("supertoroid", (1, 0.01), [1,1,1,2])
+add_mesh("shape", shape.verts, shape.faces)
 
 """
 dx, dy = 6, 6

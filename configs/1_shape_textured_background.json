@@ -1,9 +1,9 @@
 {
     "objects": {
         "s1": {
-            "shape_type": "shapegenerator",
+            "shape_type": "superellipsoid",
             "shape_params": "random",
-            "texture": {"type": "voronoi", "params": {"Scale": [0.5, 2.25], "Randomness": [0.75, 1]}, "transparent": false},
+            "texture": {"type": "noise", "params": {"Scale": [0.5, 2.25], "Randomness": [0.75, 1]}, "transparent": false},
             "scaling_params": [7.5, 7.5, 7.5],
             "rotation": true,
             "translation": false,
@@ -11,7 +11,7 @@
         }
     },
     "background": {
-        "texture": {"type": "voronoi", "params": {"Scale": [0.25, 1], "Randomness": [0.75, 1]}},
+        "texture": {"type": "noise", "params": {"Scale": [0.25, 1], "Randomness": [0.75, 1]}},
         "displacement": false
     }
 }
