@@ -658,10 +658,10 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["ViewLayer"].use_pass_object_index = True
-        scene.view_layers["ViewLayer"].use_pass_normal = True
-        scene.view_layers["ViewLayer"].use_pass_z = True
-        scene.view_layers["ViewLayer"].use_pass_mist = True
+        scene.view_layers["View Layer"].use_pass_object_index = True
+        scene.view_layers["View Layer"].use_pass_normal = True
+        scene.view_layers["View Layer"].use_pass_z = True
+        scene.view_layers["View Layer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
@@ -773,7 +773,7 @@ class BlenderScene(object):
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
 
-    def generate_ground_truth(self, output_dir="shaded"):
+    def generate_ground_truth(self, output_dir="images"):
         output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
         background_plane = bpy.data.objects["Plane"]
@@ -888,70 +888,74 @@ def sequential_texture_gen(args):
     distortion_range = texture_params[distortion_opt]
 
     # Option to match scale and distortion bins by taking sqrt of
-    # desired scenes. For now hard code ~200 scenes per
-    scale_bins = np.linspace(scale_range[0], scale_range[1], 4)
-    distortion_bins = np.linspace(distortion_range[0], distortion_range[1], 5)
+    # desired scenes. For now hard code ~50 bins total
+    n_scale_bins = 3
+    n_distortion_bins = 3
+    scenes_per_bin = 10
+    scale_bins = np.linspace(scale_range[0], scale_range[1], n_scale_bins)
+    distortion_bins = np.linspace(distortion_range[0], distortion_range[1], n_distortion_bins)
 
     scene_num = args.start_scene
     for scale in scale_bins:
         for distortion in distortion_bins:
-            scene_dir = os.path.join(args.root_dir, "scene_%03d" % scene_num)
-            os.makedirs(scene_dir, exist_ok=True)
+            for n in range(scenes_per_bin):
+                scene_dir = os.path.join(args.root_dir, f"scale={scale:.3f}_distortion={distortion:.3f}_scene={n}")
+                os.makedirs(scene_dir, exist_ok=True)
 
-            if args.scene_config != "random":
-                if args.init_config_from_scene_dir:
-                    config_path = os.path.join(scene_dir, args.scene_config)
-                else:
-                    config_path = args.scene_config
-                print("Loading config from path: ", config_path)
-                with open(config_path, "rb") as f:
-                    if config_path.endswith(".pkl"):
-                        scene_config = pickle.load(f)
+                if args.scene_config != "random":
+                    if args.init_config_from_scene_dir:
+                        config_path = os.path.join(scene_dir, args.scene_config)
                     else:
-                        scene_config = json.load(f)
-                        pprint(scene_config)
-            else:
-                scene_config = configs.generate_random_config()
-                print("Generated random scene config: ")
-                pprint(scene_config)
+                        config_path = args.scene_config
+                    print("Loading config from path: ", config_path)
+                    with open(config_path, "rb") as f:
+                        if config_path.endswith(".pkl"):
+                            scene_config = pickle.load(f)
+                        else:
+                            scene_config = json.load(f)
+                            pprint(scene_config)
+                else:
+                    scene_config = configs.generate_random_config()
+                    print("Generated random scene config: ")
+                    pprint(scene_config)
 
-            # Create a scene and initialize some basic properties
-            scene = BlenderScene(
-                scene_dir,
-                scene_config=scene_config,
-                render_size=args.render_size,
-                device=args.device,
-                n_frames=args.n_frames,
-                engine=args.engine,
-                samples=args.samples,
-                texture_scale=scale,
-                texture_distortion=(distortion_opt, distortion),
-            )
-            scene.n_frames = args.n_frames
+                # Create a scene and initialize some basic properties
+                scene = BlenderScene(
+                    scene_dir,
+                    scene_config=scene_config,
+                    render_size=args.render_size,
+                    device=args.device,
+                    n_frames=args.n_frames,
+                    engine=args.engine,
+                    samples=args.samples,
+                    texture_scale=scale,
+                    texture_distortion=(distortion_opt, distortion),
+                )
+                scene.n_frames = args.n_frames
 
-            # Set camera properties for scene
-            camera = scene.data.objects["Camera"]
-            camera.location = [
-                18.554821014404297,
-                -18.291574478149414,
-                12.243793487548828,
-            ]
-            camera.rotation_euler = [
-                1.1093190908432007,
-                9.305318826591247e-08,
-                0.8149283528327942,
-            ]
-            camera.data.sensor_width = 50
+                # Set camera properties for scene
+                camera = scene.data.objects["Camera"]
+                camera.location = [
+                    18.554821014404297,
+                    -18.291574478149414,
+                    12.243793487548828,
+                ]
+                camera.rotation_euler = [
+                    1.1093190908432007,
+                    9.305318826591247e-08,
+                    0.8149283528327942,
+                ]
+                camera.data.sensor_width = 50
 
-            scene.create_default_scene(args)
+                scene.create_default_scene(args)
 
-            # Add a render timestamp
-            ts = time.time()
-            fts = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-            with open(os.path.join(scene_dir, "timestamp.txt"), "w") as f:
-                f.write("Files Rendered at: {}\n".format(fts))
+                # Add a render timestamp
+                ts = time.time()
+                fts = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+                with open(os.path.join(scene_dir, "timestamp.txt"), "w") as f:
+                    f.write("Files Rendered at: {}\n".format(fts))
 
-            scene_num += 1
+                scene_num += 1
 
 
 def main(args):
@@ -1013,6 +1017,7 @@ def main(args):
 
 if __name__ == "__main__":
     if args.generate_sequential_textures:
+        print("Generating sequential textured scenes")
         sequential_texture_gen(args)
     else:
         main(args)

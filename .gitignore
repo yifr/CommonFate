@@ -21,3 +21,4 @@ jspsych-6.3.1/*
 saved_models
 *.pdf
 experiments/
+*.log
