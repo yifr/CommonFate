@@ -3,10 +3,10 @@
         "h1": {
             "shape_type": "superellipsoid",
             "shape_params": "random",
-            "scaling_params": [10, 10, 10, 10],
+            "scaling_params": [8, 8, 8, 8],
             "n_children": 3,
             "child_params": {
-                "shape_type": "superquadric",
+                "shape_type": "ShapeGenerator",
                 "shape_params": "random",
                 "scaling_params": [3, 3, 3, 6],
                 "texture": {"type": "noise", "params": {}},

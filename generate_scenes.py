@@ -575,7 +575,7 @@ class BlenderScene(object):
             else:
                 texture_config = object_config.get("texture")
                 if self.texture_scale:
-                    texture_config["params"]["Scale"] = self.texture_scale
+                    texture_config["params"]["Scale"] = self.texture_scale + 1
                 if self.texture_distortion:
                     distortion_key = self.texture_distortion[0]
                     texture_config["params"][distortion_key] = self.texture_distortion[
@@ -658,16 +658,16 @@ class BlenderScene(object):
         scene.use_nodes = True
 
         # Give each object in the scene a unique pass index
-        scene.view_layers["View Layer"].use_pass_object_index = True
-        scene.view_layers["View Layer"].use_pass_normal = True
-        scene.view_layers["View Layer"].use_pass_z = True
-        scene.view_layers["View Layer"].use_pass_mist = True
+        scene.view_layers["ViewLayer"].use_pass_object_index = True
+        scene.view_layers["ViewLayer"].use_pass_normal = True
+        scene.view_layers["ViewLayer"].use_pass_z = True
+        scene.view_layers["ViewLayer"].use_pass_mist = True
 
         for i, object in enumerate(objects):
             if object.name == "Plane":
                 object.pass_index = 0
             else:
-                object.pass_index = (i + 1) * 20
+                object.pass_index = (i + 1)
 
         node_tree = scene.node_tree
         links = node_tree.links
@@ -676,13 +676,8 @@ class BlenderScene(object):
             node_tree.nodes.remove(node)
 
         # Create a node for outputting the rendered image
-        # image_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
-        # image_output_node.name = "Image_Output"
-        # image_output_node.label = "Image_Output"
         path = os.path.join(self.scene_dir, "images", "Image")
         self.scene.render.filepath = path
-        # image_output_node.base_path = path
-        # image_output_node.location = 600, 0
 
         # Create a node for outputting the depth of each pixel from the camera
         depth_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
@@ -891,7 +886,7 @@ def sequential_texture_gen(args):
     # desired scenes. For now hard code ~50 bins total
     n_scale_bins = 3
     n_distortion_bins = 3
-    scenes_per_bin = 10
+    scenes_per_bin = 1
     scale_bins = np.linspace(scale_range[0], scale_range[1], n_scale_bins)
     distortion_bins = np.linspace(distortion_range[0], distortion_range[1], n_distortion_bins)
 

@@ -6,7 +6,7 @@
             "scaling_params": [5, 5, 5, 1],
             "n_children": 1,
             "child_params": {
-                "shape_type": "superquadric",
+                "shape_type": "ShapeGenerator",
                 "shape_params": "random",
                 "scaling_params": [4, 4, 4, 8],
                 "texture": {"type": "noise", "params": {}},

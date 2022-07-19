@@ -395,12 +395,12 @@ def create_shape(
     object_id="",
 ):
     if shape_type == "random":
-        shape_type = np.random.choice(["superquadric", "shapegenerator"])
+        shape_type = np.random.choice(["superquadric", "ShapeGenerator"])
 
-    if shape_type == "shapegenerator":
+    if shape_type == "ShapeGenerator":
         if type(shape_params) == str and shape_params == "random":
             shape_params = {}
-        n_extrusions = np.random.randint(2, 5)
+        n_extrusions = np.random.randint(2, 10)
         bevel = np.random.choice([True, False])
         subsurf = np.random.choice([True, False])
         big_shapes = np.random.randint(1, 5)

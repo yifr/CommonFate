@@ -1,9 +1,9 @@
 {
     "objects": {
         "s1": {
-            "shape_type": "superellipsoid",
+            "shape_type": "ShapeGenerator",
             "shape_params": "random",
-            "texture": {"type": "noise", "params": {"Scale": [0.5, 2.25], "Randomness": [0.75, 1]}, "transparent": false},
+            "texture": {"type": "noise", "params": {"Scale": [2, 5.25], "Randomness": [0.75, 1]}, "transparent": false},
             "scaling_params": [7.5, 7.5, 7.5],
             "rotation": true,
             "translation": false,
