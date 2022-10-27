@@ -131,7 +131,7 @@ class SuperQuadric:
         triangulation = Delaunay(points2d)
 
         faces = list(triangulation.simplices)
-        faces = np.load(open("/Users/yoni/Projects/CommonFate/faces.npy", "rb"))
+        # faces = np.load(open("faces.npy", "rb"))
         return faces
 
     # subsurf

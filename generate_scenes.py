@@ -54,6 +54,11 @@ parser.add_argument(
     help="path to config for scene",
     default="scene_config.json",
 )
+parser.add_argument(
+    "--multi_texture_scenes",
+    action="store_true",
+    help="Samples to use in rendering (fewer samples renders faster)",
+)
 parser.add_argument("--save_config", action="store_true", help="save config")
 parser.add_argument("--save_blendfile", action="store_true", help="save blendfile")
 parser.add_argument(
@@ -454,19 +459,21 @@ class BlenderScene(object):
         object_config["axis"] = np.zeros(shape=[n_frames, 3])
 
         rotation_axis = np.random.uniform(-1, 1, 3)
-        degrees = np.linspace(0, 360, n_frames)
+        rotation_degrees_per_frame = 360 / self.n_frames
+        rotation_degree = np.random.randint(0, 360)
 
         obj = self.data.objects[object_id]
         obj.rotation_mode = "QUATERNION"
 
         print(f"Rotation object {object_id}...")
-        for frame, degree in enumerate(degrees):
-            q = Quaternion(axis=rotation_axis, degrees=degree)
+        for frame in range(self.n_frames):
+            rotation_degree = (rotation_degree + rotation_degrees_per_frame) % 360
+            q = Quaternion(axis=rotation_axis, degrees=rotation_degree)
 
             # Record params
             object_config["rotation_quaternion"][frame] = q.elements
             object_config["rotation_matrix"][frame] = q.rotation_matrix
-            object_config["angle"][frame] = degree
+            object_config["angle"][frame] = rotation_degree
             object_config["axis"][frame] = rotation_axis
 
             # Animate rotation
@@ -493,14 +500,6 @@ class BlenderScene(object):
         hierarchy_config["angle"] = np.zeros(shape=[n_frames, 1])
         hierarchy_config["axis"] = np.zeros(shape=[n_frames, 3])
         location = hierarchy_config.get("location", np.array([0, 0, 0]))
-
-        # shape = shapes.create_shape(
-        #     hierarchy_config["shape_type"],
-        #     hierarchy_config["shape_params"],
-        #     hierarchy_config["scaling_params"],
-        #     is_parent=True,
-        #     n_children=hierarchy_config["n_children"],
-        # )
 
         verts = []
         for child_id in hierarchy_config["children"]:
@@ -561,10 +560,9 @@ class BlenderScene(object):
                     self.rotate_hierarchy(object_config, object_id, rotation)
                 else:
                     self.rotate_object(object_id, object_config)
-
         return
 
-    def add_textures(self, scene_config=None):
+    def add_textures(self, texture_type=None, scene_config=None):
         all_object_configs = self.get_all_object_configs()
         for object_id in all_object_configs:
             object_config = all_object_configs[object_id]
@@ -574,8 +572,10 @@ class BlenderScene(object):
                 continue
             else:
                 texture_config = object_config.get("texture")
+                if texture_type:
+                    texture_config["type"] = texture_type
                 if self.texture_scale:
-                    texture_config["params"]["Scale"] = self.texture_scale + 1
+                    texture_config["params"]["Scale"] = self.texture_scale * 6
                 if self.texture_distortion:
                     distortion_key = self.texture_distortion[0]
                     texture_config["params"][distortion_key] = self.texture_distortion[
@@ -586,67 +586,8 @@ class BlenderScene(object):
                 texture = textures.add_texture(self, obj, texture_config)
                 object_config["texture"] = texture
 
-    def generate_trajectory(self, obj, mesh_id=0, save=True):
-        data = {}
-        if os.path.exists(self.rotation_data):
-            data = np.load(self.rotation_data, allow_pickle=True).item()
-
-        if not data.get(mesh_id):
-            object = {}
-
-        n_frames = self.n_frames
-        object["trajectory"] = np.zeros((n_frames, 3))
-
-        quadrants = np.random.choice(
-            list(self.render_frame_boundaries.keys()), 2, replace=False
-        )
-        locations = [self.render_frame_boundaries[quadrant] for quadrant in quadrants]
-        print(quadrants)
-        for i, quadrant in enumerate(quadrants):
-            y, x = quadrant.split("_")
-            if y == "top":
-                y_range = locations[i][1] - self.y_len / 2
-            else:
-                y_range = locations[i][1] + self.y_len / 2
-
-            if x == "right":
-                x_range = locations[i][0] - self.x_len / 2
-            else:
-                x_range = locations[i][0] + self.x_len / 2
-
-            # Randomly sample starting point along either x or y axis of a quadrant
-            if np.random.rand() > 0.5:
-                # Sample starting point along y region
-                locations[i][1] = np.random.uniform(locations[i][1], y_range)
-            else:
-                locations[i][0] = np.random.uniform(locations[i][0], x_range)
-
-        self.render_frame_boundaries.pop(quadrants[0])
-        self.render_frame_boundaries.pop(quadrants[1])
-
-        x1, y1, z1 = locations[0]
-        x2, y2, z2 = locations[1]
-
-        scene = self.scene
-        scene.frame_start = 1
-        scene.frame_end = self.n_frames
-
-        obj.location = [x1, y1, z1]
-        obj.keyframe_insert("location", frame=1)
-
-        obj.location = [x2, y2, z2]
-        obj.keyframe_insert("location", frame=self.n_frames)
-
-        for i in range(n_frames):
-            bpy.context.scene.frame_set(i)
-            object["trajectory"][i] = obj.location
-
-        bpy.context.scene.frame_set(1)
-
-        if save:
-            np.save(self.rotation_data, data, allow_pickle=True)
-        return data
-
+        return texture
+        
     def render(self, output_dir="images"):
         img_path = os.path.join(self.scene_dir, output_dir)
         self.renderer.render(img_path)
@@ -687,15 +628,6 @@ class BlenderScene(object):
         depth_output_node.base_path = path
         depth_output_node.location = 600, 0
 
-        # Create a node for outputting shaded scenes
-        """
-        shaded_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
-        shaded_output_node.label = "Shaded_Output"
-        shaded_output_node.name = "Shaded_Output"
-        path = os.path.join(self.scene_dir, "shaded")
-        shaded_output_node.base_path = path
-        shaded_output_node.location = 600, -100
-        """
         # Create a node for outputting the index of each object
         mask_output_node = node_tree.nodes.new(type="CompositorNodeOutputFile")
         mask_output_node.label = "Mask_Output"
@@ -729,15 +661,6 @@ class BlenderScene(object):
         depth_output_node.base_path = path
         depth_output_node.location = 600, 0
 
-        # map_range_node = node_tree.nodes.new(type="CompositorNodeMapRange")
-        # normalize_node = node_tree.nodes.new(type="CompositorNodeNormalize")
-        # normalize_node.location = 100, 0
-        # map_range_node.location = 400, 0
-        # map_range_node.inputs["From Min"].default_value = 1
-        # map_range_node.inputs["From Max"].default_value = 0
-        # map_range_node.inputs["To Min"].default_value = 0
-        # map_range_node.inputs["To Max"].default_value = 1
-
         # Create a node for the output from the renderer
         compositor_node = node_tree.nodes.new(type="CompositorNodeComposite")
         compositor_node.location = 600, 200
@@ -751,49 +674,109 @@ class BlenderScene(object):
         links.new(
             render_layers_node.outputs["Depth"], depth_output_node.inputs["Image"]
         )
-        # links.new(normalize_node.outputs[0], map_range_node.inputs[0])
-        # links.new(map_range_node.outputs[0], depth_output_node.inputs["Image"])
 
         # Link Object Index Masks
         links.new(render_layers_node.outputs["IndexOB"], math_node.inputs[0])
         links.new(math_node.outputs[0], mask_output_node.inputs["Image"])
-        """
-        # Link Shaded
-        links.new(
-            render_layers_node.outputs["Normal"], shaded_output_node.inputs["Image"]
-        )
-        """
+
         # Link Normals
         links.new(
             render_layers_node.outputs["Normal"], normal_output_node.inputs["Image"]
         )
 
-    def generate_ground_truth(self, output_dir="images"):
+    def render_untextured_pass(self, output_dir="unshaded"):
         output_dir = os.path.join(self.scene_dir, output_dir, "Image")
         self.scene.render.filepath = output_dir
         background_plane = bpy.data.objects["Plane"]
         self.set_mode("OBJECT", "MESH")
-        self.delete(background_plane)
+        background_plane.select_set(True)
+        bpy.ops.object.delete()
 
         world_nodes = self.data.worlds["World"].node_tree.nodes
         world_nodes["Background"].inputs["Color"].default_value = np.random.rand(4)
-        world_nodes["Background"].inputs["Strength"].default_value = 1
-        self.objects["Light"].data.energy = 1.5
+        world_nodes["Background"].inputs["Strength"].default_value = 0.5
+        self.objects["Light"].data.energy = 1
         self.objects["Light"].data.use_shadow = True
-
-        print("[Turning off texture]")
-        for mat in bpy.data.materials:
-            mat.use_nodes = False
-            print(mat.name)
 
         for obj in bpy.data.objects:
             if obj.type == "MESH":
+                bpy.context.view_layer.objects.active = obj
                 obj.active_material.diffuse_color = list(np.random.rand(3)) + [1]
                 obj.active_material.shadow_method = "OPAQUE"
 
-        self.context.scene.render.film_transparent = False
+        # self.context.scene.render.film_transparent = False
+        self.renderer.render(output_dir)
+        
+    def create_multi_texture_scene(self, args):
+        # Clear any previous meshes
+        self.set_mode("OBJECT")
+        self.delete_all(obj_type="MESH")
+        self.delete_all(obj_type="OBJECT")
+        self.delete_all(obj_type="LIGHT")
 
-        self.renderer.set_render_settings()
+        # Set direct and ambient light
+        camera_loc = bpy.data.objects["Camera"].location
+        camera_rot = bpy.data.objects["Camera"].rotation_euler
+        self.set_light_source("SUN", camera_loc, camera_rot)
+
+        print("Adding objects...")
+        self.add_objects()
+        print("Generating motion...")
+        self.generate_rotations()
+        texture_types = ["noise", "voronoi", "wave"]
+        for texture_type in texture_types:
+            print("Adding textures...")
+            texture_params = self.add_textures(texture_type=texture_type)
+            try:
+                texture_params["params"]["Scale"] /= 2
+                background = bpy.data.objects["Plane"]
+                textures.add_texture(self, background, texture_params)
+            except:
+                texture_params["params"]["Scale"] /= 2
+                self.add_background_plane(texture_params=texture_params)
+            self.render(texture_type)
+
+        # Delete background plane and render untextured scene  
+        background_plane = bpy.data.objects["Plane"]
+        self.set_mode("OBJECT", "MESH")
+        # background_plane.select_set(True)
+        # bpy.ops.object.delete()    
+
+        output_dir = os.path.join(self.scene_dir, "untextured", "Image")
+        self.scene.render.filepath = output_dir
+
+        # self.objects["Light"].data.use_shadow = True
+        self.objects["Light"].data.energy = 1.5
+
+        for obj in bpy.data.objects:
+            if obj.type == "MESH":
+                obj.active_material.use_nodes = False
+                bpy.context.view_layer.objects.active = obj
+                obj.active_material.diffuse_color = list(np.random.rand(3)) + [1]
+                obj.active_material.shadow_method = "OPAQUE"
+
+        self.generate_masks() 
+        bpy.context.scene.render.image_settings.color_mode = 'RGBA' 
+        self.render("untextured")
+        
+        # Save and clean up scene
+        if args.save_blendfile:
+            bpy.ops.wm.save_mainfile(
+                filepath=self.scene_dir + "/scene.blend", check_existing=False
+            )
+        if args.save_config:
+            self.save_config()
+
+        self.delete_all(obj_type="MESH")
+
+        return
+
+    def save_config(self):
+        config_path = os.path.join(self.scene_dir, "scene_config.pkl")
+        print(f"Writing config to {config_path}")
+        with open(config_path, "wb") as f:
+            pickle.dump(self.scene_config, f, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     def create_default_scene(self, args):
         # Clear any previous meshes
@@ -808,8 +791,11 @@ class BlenderScene(object):
         camera_rot = bpy.data.objects["Camera"].rotation_euler
         self.set_light_source("SUN", camera_loc, camera_rot)
 
+        print("Adding objects...")
         self.add_objects()
+        print("Generating motion...")
         self.generate_rotations()
+        print("Adding textures...")
         self.add_textures()
 
         # if args.scene_type == "galaxy":
@@ -841,11 +827,13 @@ class BlenderScene(object):
 
         if args.render_views == "ground_truth":
             self.generate_masks()
-            self.generate_ground_truth()
+            self.render_untextured_pass()
             bpy.ops.render.render(animation=True, write_still=True)
         elif args.render_views == "masks":
             self.generate_masks()
             bpy.ops.render.render(animation=True, write_still=True)
+        elif args.render_views == "textured":
+            self.render()
         else:
             print(f"{args.render_views} is not defined. No images will be rendered.")
 
@@ -1001,7 +989,10 @@ def main(args):
         ]
         camera.data.sensor_width = 50
 
-        scene.create_default_scene(args)
+        if args.multi_texture_scenes:
+            scene.create_multi_texture_scene(args)
+        else:
+            scene.create_default_scene(args)
 
         # Add a render timestamp
         ts = time.time()

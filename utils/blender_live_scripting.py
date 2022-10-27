@@ -1,7 +1,7 @@
 import sys
 
 
-sys.path.append("/Users/yoni/Projects/CommonFate")
+sys.path.append("/Users/yonifriedman/Projects/CommonFate")
 import bpy
 import numpy as np
 import shapes

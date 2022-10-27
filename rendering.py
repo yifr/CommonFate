@@ -29,7 +29,7 @@ class RenderEngine:
         self.render_size = render_size
         self.samples = samples
 
-        if self.device == "CUDA":
+        if self.device == "CUDA" or self.device == "GPU":
             self.activated_gpus = self.enable_gpus(scene)
             print(f"Using following GPUs: {self.activated_gpus}")
 
@@ -68,7 +68,6 @@ class RenderEngine:
 
         preferences = bpy.context.preferences
         cycles_preferences = preferences.addons["cycles"].preferences
-        cycles_preferences.compute_device_type = device_type
 
         activated_gpus = []
         print(cycles_preferences.get_devices())
@@ -78,8 +77,8 @@ class RenderEngine:
                 device.use = True
                 activated_gpus.append(device.name)
 
-        cycles_preferences.compute_device_type = device_type
+        cycles_preferences.compute_device_type = "METAL"
 
-        scene.render.tile_x = 128
-        scene.render.tile_y = 128
+        # scene.render.tile_x = 128
+        # scene.render.tile_y = 128
         return activated_gpus
